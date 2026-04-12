@@ -1,0 +1,16 @@
+{
+	"required": true,
+	"package": "madoku.craft.mixin.client",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"AbstractContainerScreenAccessor",
+		"CreativeModeInventoryScreenAccessor",
+		"CreativeModeInventoryScreenPetSlotMixin",
+		"CreativeModeSlotWrapperAccessor",
+		"MerchantScreenAccessor",
+		"SlotAccessor"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

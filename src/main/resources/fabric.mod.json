@@ -1,0 +1,38 @@
+{
+	"schemaVersion": 1,
+	"id": "madoku-craft-pets",
+	"version": "${version}",
+	"name": "Madoku Craft: Pets",
+	"description": "Dedicated Madoku Craft pets and hag systems built on Madoku Craft API.",
+	"authors": [
+		"Casua"
+	],
+	"contact": {
+		"homepage": "https://www.curseforge.com/minecraft/mc-mods/madoku-craft-pets"
+	},
+	"license": "All Rights Reserved",
+	"icon": "assets/madoku-craft-pets/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"madoku.craft.pets.Madokucraftpets"
+		],
+		"client": [
+			"madoku.craft.pets.client.MadokucraftpetsClient"
+		]
+	},
+	"mixins": [
+		"madoku-craft-pets.mixins.json",
+		{
+			"config": "madoku-craft-pets.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.18.6",
+		"minecraft": "~26.1.2",
+		"java": ">=25",
+		"fabric-api": "*",
+		"madoku-craft-api": ">=${madoku_craft_api_mod_version}"
+	}
+}
