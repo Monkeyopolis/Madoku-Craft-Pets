@@ -159,16 +159,18 @@ public final class PetAbilityHud {
 		long remainingTicks
 	) {
 		String cooldownText = Integer.toString(Math.max(1, Mth.ceil(remainingTicks / 20.0F)));
-		int textWidth = Math.round(client.font.width(cooldownText) * ABILITY_COOLDOWN_TEXT_SCALE);
-		int textX = slotX + ((ABILITY_SLOT_SIZE - textWidth) / 2);
-		int textY = slotY - Math.round(client.font.lineHeight * ABILITY_COOLDOWN_TEXT_SCALE) - ABILITY_COOLDOWN_TEXT_Y_SPACING;
+		float slotCenterX = slotX + (ABILITY_SLOT_SIZE / 2.0F);
+		float scaledTextX = (slotCenterX / ABILITY_COOLDOWN_TEXT_SCALE) - (client.font.width(cooldownText) / 2.0F);
+		float scaledTextY =
+			(slotY - ABILITY_COOLDOWN_TEXT_Y_SPACING - (client.font.lineHeight * ABILITY_COOLDOWN_TEXT_SCALE))
+				/ ABILITY_COOLDOWN_TEXT_SCALE;
 		context.pose().pushMatrix();
 		context.pose().scale(ABILITY_COOLDOWN_TEXT_SCALE, ABILITY_COOLDOWN_TEXT_SCALE);
 		context.text(
 			client.font,
 			cooldownText,
-			Math.round(textX / ABILITY_COOLDOWN_TEXT_SCALE),
-			Math.round(textY / ABILITY_COOLDOWN_TEXT_SCALE),
+			Math.round(scaledTextX),
+			Math.round(scaledTextY),
 			ABILITY_COOLDOWN_TEXT_COLOR,
 			true
 		);

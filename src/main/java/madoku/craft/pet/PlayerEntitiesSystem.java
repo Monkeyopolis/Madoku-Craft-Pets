@@ -2850,7 +2850,7 @@ public final class PlayerEntitiesSystem {
 			if (usesExplosiveProjectile) {
 				root.addProperty("follow_speed", 1.2D);
 				root.addProperty("idle_move_speed", 0.8D);
-				root.addProperty("attack_damage", 10.0D);
+				root.addProperty("attack_damage", 12.0D);
 				root.addProperty("attack_speed", 2.0D);
 				root.addProperty("cooldown_ticks", 60L * 20L);
 				root.addProperty("shot_delay_ticks", 10L);
@@ -2866,7 +2866,7 @@ public final class PlayerEntitiesSystem {
 				root.addProperty("player_damage_bonus", 1.0D);
 			}
 			if (usesFallDamageReduction) {
-				root.addProperty("fall_damage_reduction", 0.10D);
+				root.addProperty("fall_damage_reduction", 0.20D);
 			}
 			if (usesMaxHealthBonus) {
 				root.addProperty("max_health_bonus", 0.10D);
