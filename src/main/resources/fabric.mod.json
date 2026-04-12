@@ -3,12 +3,12 @@
 	"id": "madoku-craft-pets",
 	"version": "${version}",
 	"name": "Madoku Craft: Pets",
-	"description": "Dedicated Madoku Craft pets and hag systems built on Madoku Craft API.",
+	"description": "A configurable Pet system.",
 	"authors": [
-		"Casua"
+		"Monkeyopolis"
 	],
 	"contact": {
-		"homepage": "https://www.curseforge.com/minecraft/mc-mods/madoku-craft-pets"
+		"homepage": "https://github.com/Monkeyopolis/Madoku-Craft-Pets"
 	},
 	"license": "All Rights Reserved",
 	"icon": "assets/madoku-craft-pets/icon.png",
