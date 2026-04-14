@@ -28,7 +28,6 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.DamageTypeTags;
-import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
@@ -36,6 +35,7 @@ import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ambient.Bat;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -86,19 +86,20 @@ public final class PlayerEntitiesSystem {
 	private static final String MANAGED_PET_TAG = "madoku-craft-pets.pet";
 	private static final String MANAGED_PET_OWNER_PREFIX = "madoku-craft-pets.pet.owner:";
 	private static final String MANAGED_PET_ITEM_PREFIX = "madoku-craft-pets.pet.item:";
-	private static final String PET_ABILITY_NONE = "none";
-	private static final String PET_ABILITY_RANGED_HOMING_ARROW = "ranged_homing_arrow";
-	private static final String PET_ABILITY_WEB_PROJECTILE = "web_projectile";
-	private static final String PET_ABILITY_EXPLOSIVE_PROJECTILE = "explosive_projectile";
-	private static final String PET_ABILITY_PLAYER_DAMAGE_BONUS = "player_damage_bonus";
-	private static final String PET_ABILITY_FALL_DAMAGE_REDUCTION = "fall_damage_reduction";
-	private static final String PET_ABILITY_MAX_HEALTH_BONUS = "max_health_bonus";
-	private static final String PET_ABILITY_ARMOR_BONUS = "armor_bonus";
-	private static final String PET_ABILITY_DAMAGE_BLOCK = "damage_block";
-	private static final String PET_RARITY_COMMON = "common";
-	private static final String PET_RARITY_RARE = "rare";
-	private static final String PET_RARITY_EPIC = "epic";
-	private static final String PET_RARITY_MYTHIC = "mythic";
+	static final String PET_ABILITY_NONE = "none";
+	static final String PET_ABILITY_RANGED_HOMING_ARROW = "ranged_homing_arrow";
+	static final String PET_ABILITY_WEB_PROJECTILE = "web_projectile";
+	static final String PET_ABILITY_EXPLOSIVE_PROJECTILE = "explosive_projectile";
+	static final String PET_ABILITY_PLAYER_DAMAGE_BONUS = "player_damage_bonus";
+	static final String PET_ABILITY_FALL_DAMAGE_REDUCTION = "fall_damage_reduction";
+	static final String PET_ABILITY_MAX_HEALTH_BONUS = "max_health_bonus";
+	static final String PET_ABILITY_ARMOR_BONUS = "armor_bonus";
+	static final String PET_ABILITY_DAMAGE_BLOCK = "damage_block";
+	static final String PET_ABILITY_MOB_SCAN = "mob_scan";
+	static final String PET_RARITY_COMMON = "common";
+	static final String PET_RARITY_RARE = "rare";
+	static final String PET_RARITY_EPIC = "epic";
+	static final String PET_RARITY_MYTHIC = "mythic";
 	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 	private static final int HOMING_ARROW_LIFETIME_TICKS = 20;
 	private static final double HOMING_ARROW_MIN_SPEED = 0.35D;
@@ -109,6 +110,13 @@ public final class PlayerEntitiesSystem {
 	private static final int EXPLOSIVE_PROJECTILE_LIFETIME_TICKS = 20;
 	private static final double EXPLOSIVE_PROJECTILE_HIT_DISTANCE = 1.0D;
 	private static final double EXPLOSIVE_PROJECTILE_MIN_SPEED = 0.5D;
+	private static final int BAT_SCAN_BASE_VERTICAL_RADIUS_BLOCKS = 8;
+	private static final int BAT_SCAN_VERTICAL_RADIUS_PER_EXTRA_BAT = 2;
+	private static final int BAT_SCAN_BASE_CHUNK_RADIUS = 1;
+	private static final int BAT_SCAN_ENHANCED_CHUNK_RADIUS = 2;
+	private static final int BAT_SCAN_MIN_BATS_FOR_ENHANCED_RADIUS = 3;
+	private static final long BAT_SCAN_GLOWING_DURATION_TICKS = 90L * 20L;
+	private static final long BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT = 30L * 20L;
 	private static final Identifier PLAYER_DAMAGE_ABILITY_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "madoku_pets_player_damage_bonus");
 	private static final Identifier PLAYER_MAX_HEALTH_ABILITY_MODIFIER_ID =
@@ -120,13 +128,6 @@ public final class PlayerEntitiesSystem {
 	private static final String FIELD_SPAWN_X = "spawn_x";
 	private static final String FIELD_SPAWN_Y = "spawn_y";
 	private static final String FIELD_SPAWN_Z = "spawn_z";
-	private static final SlotOffset[] SLOT_OFFSETS = {
-		new SlotOffset(-0.90D, 0.85D),
-		new SlotOffset(-0.30D, 1.35D),
-		new SlotOffset(0.30D, 1.35D),
-		new SlotOffset(0.90D, 0.85D)
-	};
-
 	private static final Map<UUID, UUID[]> PET_IDS_BY_PLAYER = new ConcurrentHashMap<>();
 	private static final Set<UUID> ACTIVE_PET_IDS = ConcurrentHashMap.newKeySet();
 	private static final Map<UUID, Long> NEXT_IDLE_MOVE_BY_PET = new ConcurrentHashMap<>();
@@ -140,7 +141,7 @@ public final class PlayerEntitiesSystem {
 	private static final Map<UUID, WebProjectileState> ACTIVE_WEB_PROJECTILES = new ConcurrentHashMap<>();
 	private static final Map<UUID, ExplosiveProjectileState> ACTIVE_EXPLOSIVE_PROJECTILES = new ConcurrentHashMap<>();
 
-	private static volatile Settings settings = Settings.defaults();
+	private static volatile PetSettings settings = PetSettings.defaults();
 	private static volatile Map<String, PetRule> petRulesByItemId = Map.of();
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
 
@@ -306,6 +307,18 @@ public final class PlayerEntitiesSystem {
 		return Math.max(20, baseInterval * Math.max(1, intervalMultiplier));
 	}
 
+	public static long managedPetSteeringInterval() {
+		return activeSchedulerTickInterval();
+	}
+
+	public static Vec3 managedPetMovementTarget(Mob pet) {
+		return PetMovementController.managedPetMovementTarget(pet, FOLLOW_COMMANDS_BY_PET);
+	}
+
+	public static double managedPetMovementSpeed(Mob pet, double fallbackSpeed) {
+		return PetMovementController.managedPetMovementSpeed(pet, fallbackSpeed, FOLLOW_COMMANDS_BY_PET);
+	}
+
 	public static boolean isEnabled() {
 		return settings.enabled;
 	}
@@ -332,6 +345,19 @@ public final class PlayerEntitiesSystem {
 	public static int abilityCooldownTicks(ItemStack stack) {
 		PetRule rule = resolvePetRule(stack);
 		return rule == null ? 0 : (int) Math.min(Integer.MAX_VALUE, Math.max(0L, rule.cooldownTicks));
+	}
+
+	public static int abilityCooldownTicks(Player player, int slot, ItemStack stack) {
+		PetRule rule = resolvePetRule(stack);
+		if (rule == null) {
+			return 0;
+		}
+		if (!PET_ABILITY_MOB_SCAN.equals(rule.abilityType)) {
+			return abilityCooldownTicks(stack);
+		}
+		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		int batCount = countSlotsWithAbility(inventory, PET_ABILITY_MOB_SCAN);
+		return (int) Math.min(Integer.MAX_VALUE, effectiveBatScanCooldownTicks(Math.max(1, batCount), rule));
 	}
 
 	public static void applyAbilityLore(ItemStack stack) {
@@ -631,6 +657,7 @@ public final class PlayerEntitiesSystem {
 			playerEntitiesInventory.setItem(slot, ItemStack.EMPTY);
 		}
 		playerEntitiesInventory.setChanged();
+		playerEntitiesInventory.setChanged();
 	}
 
 	public static int countPlayerEntities(Player player) {
@@ -649,7 +676,7 @@ public final class PlayerEntitiesSystem {
 	}
 
 	private static MadokuDebug.EventBuilder debugPlayerEvent(String metricId, ServerPlayer player) {
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, MadokuDebug.Domain.ENTITY)
+		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, petDebugDomain())
 			.side(MadokuDebug.Side.SERVER);
 		if (player == null) {
 			return builder;
@@ -662,14 +689,14 @@ public final class PlayerEntitiesSystem {
 	}
 
 	private static MadokuDebug.EventBuilder debugPlayerIdEvent(String metricId, UUID playerId) {
-		return MadokuDebug.event(metricId, MadokuDebug.Domain.ENTITY)
+		return MadokuDebug.event(metricId, petDebugDomain())
 			.side(MadokuDebug.Side.SERVER)
 			.subject("player:" + (playerId == null ? "unknown" : playerId))
 			.field("player_uuid", playerId);
 	}
 
 	private static MadokuDebug.EventBuilder debugPetEvent(String metricId, Mob pet) {
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, MadokuDebug.Domain.ENTITY)
+		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, petDebugDomain())
 			.side(MadokuDebug.Side.SERVER);
 		if (pet == null) {
 			return builder;
@@ -680,6 +707,14 @@ public final class PlayerEntitiesSystem {
 			.subject("pet:" + pet.getUUID())
 			.field("pet_uuid", pet.getUUID())
 			.field("pet_type", entityTypeId(pet.getType()));
+	}
+
+	private static MadokuDebug.Domain petDebugDomain() {
+		try {
+			return MadokuDebug.Domain.valueOf("PET");
+		} catch (IllegalArgumentException exception) {
+			return MadokuDebug.Domain.ENTITY;
+		}
 	}
 
 	private static boolean hasAnyConfiguredPetStack(PlayerEntitiesInventory inventory) {
@@ -733,13 +768,13 @@ public final class PlayerEntitiesSystem {
 		try {
 			Path rootDirectory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(PET_CONFIG_ROOT_FOLDER_NAME);
 			Path configFile = resolveJsonFile(rootDirectory, PET_CONFIG_FILE_NAME);
-			JsonObject defaults = Settings.defaults().toConfigJson();
+			JsonObject defaults = PetSettings.defaults().toConfigJson();
 			JsonObject normalized = StaticJsonSystem.ensureManagedFile(configFile, defaults);
-			Settings configured = Settings.fromJson(normalized);
+			PetSettings configured = PetSettings.fromJson(normalized);
 			StaticJsonSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);
 			settings = configured;
 		} catch (IOException exception) {
-			settings = Settings.defaults();
+			settings = PetSettings.defaults();
 			LOGGER.error("Failed to load Madoku pet settings; using defaults.", exception);
 		}
 	}
@@ -787,6 +822,7 @@ public final class PlayerEntitiesSystem {
 
 	private static Map<String, JsonObject> buildDefaultPetRuleFiles() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
+		defaults.put("bat", PetRule.defaultsForItem("minecraft:bat_spawn_egg", PET_ABILITY_MOB_SCAN));
 		defaults.put("chicken", PetRule.defaultsForItem("minecraft:chicken_spawn_egg", PET_ABILITY_FALL_DAMAGE_REDUCTION));
 		defaults.put("cow", PetRule.defaultsForItem("minecraft:cow_spawn_egg", PET_ABILITY_DAMAGE_BLOCK));
 		defaults.put("creeper", PetRule.defaultsForItem("minecraft:creeper_spawn_egg", PET_ABILITY_EXPLOSIVE_PROJECTILE));
@@ -980,6 +1016,177 @@ public final class PlayerEntitiesSystem {
 		return player.hasLineOfSight(target);
 	}
 
+	private static void triggerAutomaticPetAbilities(ServerPlayer player, long gameplayTicks) {
+		triggerAutomaticBatMobScan(player, gameplayTicks);
+	}
+
+	private static void triggerAutomaticBatMobScan(ServerPlayer player, long gameplayTicks) {
+		if (player == null || !player.isAlive()) {
+			return;
+		}
+
+		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		if (inventory == null) {
+			return;
+		}
+
+		int[] batSlots = new int[SLOT_COUNT];
+		PetRule[] batRules = new PetRule[SLOT_COUNT];
+		int batCount = collectSlotsWithAbility(inventory, PET_ABILITY_MOB_SCAN, batSlots, batRules);
+		if (batCount <= 0) {
+			return;
+		}
+
+		PetRule sharedRule = batRules[0];
+		if (sharedRule == null || sharedRule.cooldownTicks <= 0L) {
+			return;
+		}
+
+		long sharedCooldownTick = synchronizeSharedAbilityCooldown(player.getUUID(), batSlots, batCount, gameplayTicks);
+		if (gameplayTicks < sharedCooldownTick) {
+			return;
+		}
+
+		applyAutomaticBatMobScan(player, batCount, sharedRule);
+		setSharedAbilityCooldown(player.getUUID(), batSlots, batCount, gameplayTicks + effectiveBatScanCooldownTicks(batCount, sharedRule));
+	}
+
+	private static void applyAutomaticBatMobScan(ServerPlayer player, int batCount, PetRule rule) {
+		if (player == null || batCount <= 0 || !(player.level() instanceof ServerLevel level)) {
+			return;
+		}
+
+		SoundEvent soundEvent = rule == null ? SoundEvents.BEACON_ACTIVATE : rule.resolveSoundEvent();
+		level.playSound(
+			null,
+			player.getX(),
+			player.getEyeY(),
+			player.getZ(),
+			soundEvent,
+			SoundSource.NEUTRAL,
+			0.45F,
+			1.15F
+		);
+
+		int horizontalRadius = (batCount >= BAT_SCAN_MIN_BATS_FOR_ENHANCED_RADIUS ? BAT_SCAN_ENHANCED_CHUNK_RADIUS : BAT_SCAN_BASE_CHUNK_RADIUS) * 16;
+		int verticalRadius = BAT_SCAN_BASE_VERTICAL_RADIUS_BLOCKS + Math.max(0, batCount - 1) * BAT_SCAN_VERTICAL_RADIUS_PER_EXTRA_BAT;
+		AABB area = new AABB(
+			player.getX() - horizontalRadius,
+			player.getY() - verticalRadius,
+			player.getZ() - horizontalRadius,
+			player.getX() + horizontalRadius,
+			player.getY() + verticalRadius,
+			player.getZ() + horizontalRadius
+		);
+		for (Mob mob : level.getEntitiesOfClass(Mob.class, area, candidate ->
+			candidate != null
+				&& candidate.isAlive()
+				&& !candidate.isRemoved()
+				&& !isManagedPet(candidate)
+		)) {
+			mob.addEffect(new MobEffectInstance(MobEffects.GLOWING, (int) BAT_SCAN_GLOWING_DURATION_TICKS, 0, false, false, true));
+		}
+	}
+
+	private static long effectiveBatScanCooldownTicks(int batCount, PetRule rule) {
+		long baseCooldown = Math.max(0L, rule == null ? 0L : rule.cooldownTicks);
+		int additionalBats = Math.max(0, batCount - 1);
+		return Math.max(20L, baseCooldown - (additionalBats * BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT));
+	}
+
+	private static int countSlotsWithAbility(PlayerEntitiesInventory inventory, String abilityType) {
+		return collectSlotsWithAbility(inventory, abilityType, null, null);
+	}
+
+	private static int collectSlotsWithAbility(
+		PlayerEntitiesInventory inventory,
+		String abilityType,
+		int[] slots,
+		PetRule[] rules
+	) {
+		if (inventory == null || abilityType == null) {
+			return 0;
+		}
+
+		int count = 0;
+		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
+			ItemStack stack = inventory.getItem(slot);
+			PetRule rule = resolvePetRule(stack);
+			if (rule == null || !rule.enabled || !abilityType.equals(rule.abilityType)) {
+				continue;
+			}
+			if (slots != null && count < slots.length) {
+				slots[count] = slot;
+			}
+			if (rules != null && count < rules.length) {
+				rules[count] = rule;
+			}
+			count++;
+		}
+		return count;
+	}
+
+	private static long synchronizeSharedAbilityCooldown(UUID playerId, int[] slots, int slotCount, long gameplayTicks) {
+		if (playerId == null || slots == null || slotCount <= 0) {
+			return 0L;
+		}
+
+		long[] cooldowns = PLAYER_SLOT_COOLDOWNS.get(playerId);
+		if (cooldowns == null) {
+			return 0L;
+		}
+
+		long sharedCooldownTick = 0L;
+		for (int index = 0; index < slotCount; index++) {
+			int slot = slots[index];
+			if (slot < 0 || slot >= Math.min(SLOT_COUNT, cooldowns.length)) {
+				continue;
+			}
+			sharedCooldownTick = Math.max(sharedCooldownTick, cooldowns[slot]);
+		}
+		if (sharedCooldownTick > 0L && sharedCooldownTick <= gameplayTicks) {
+			sharedCooldownTick = 0L;
+		}
+
+		boolean changed = false;
+		for (int index = 0; index < slotCount; index++) {
+			int slot = slots[index];
+			if (slot < 0 || slot >= Math.min(SLOT_COUNT, cooldowns.length) || cooldowns[slot] == sharedCooldownTick) {
+				continue;
+			}
+			cooldowns[slot] = sharedCooldownTick;
+			changed = true;
+		}
+		if (changed) {
+			if (!hasNonZeroCooldown(cooldowns)) {
+				PLAYER_SLOT_COOLDOWNS.remove(playerId);
+			}
+			markAbilityHudDirty(playerId);
+		}
+		return sharedCooldownTick;
+	}
+
+	private static void setSharedAbilityCooldown(UUID playerId, int[] slots, int slotCount, long cooldownTick) {
+		if (playerId == null || slots == null || slotCount <= 0) {
+			return;
+		}
+
+		long[] cooldowns = slotCooldowns(playerId);
+		long normalizedCooldownTick = Math.max(0L, cooldownTick);
+		boolean changed = false;
+		for (int index = 0; index < slotCount; index++) {
+			int slot = slots[index];
+			if (slot < 0 || slot >= Math.min(SLOT_COUNT, cooldowns.length) || cooldowns[slot] == normalizedCooldownTick) {
+				continue;
+			}
+			cooldowns[slot] = normalizedCooldownTick;
+			changed = true;
+		}
+		if (changed) {
+			markAbilityHudDirty(playerId);
+		}
+	}
+
 	private static void runPetTick(MinecraftServer server, MadokuScheduler.TaskContext context, JsonObject payload) {
 		if (server == null || context == null) {
 			return;
@@ -1025,6 +1232,7 @@ public final class PlayerEntitiesSystem {
 			triggerReactivePetAttacks(player, ongoingReactiveTarget);
 			nextDelay = Math.min(nextDelay, activeSchedulerTickInterval());
 		}
+		triggerAutomaticPetAbilities(player, context.getNowTick());
 		if (nextDelay >= 0L) {
 			debugPlayerEvent("pet.tick_completed", player)
 				.field("next_delay", nextDelay)
@@ -1140,7 +1348,15 @@ public final class PlayerEntitiesSystem {
 			if (pet != null) {
 				ACTIVE_PET_IDS.add(pet.getUUID());
 				ensurePetConfiguration(pet, rule);
-				nextDelay = Math.min(nextDelay, updatePetPosition(player, pet, slot, rule));
+				nextDelay = Math.min(nextDelay, PetMovementController.updatePetPosition(
+					player,
+					pet,
+					slot,
+					rule,
+					settings,
+					NEXT_IDLE_MOVE_BY_PET,
+					FOLLOW_COMMANDS_BY_PET
+				));
 				anyActive = true;
 			}
 		}
@@ -1174,7 +1390,7 @@ public final class PlayerEntitiesSystem {
 			return null;
 		}
 
-		Vec3 desiredPosition = resolveDesiredPosition(owner, slot);
+		Vec3 desiredPosition = PetMovementController.resolveDesiredPosition(owner, slot, pet);
 		pet.snapTo(desiredPosition.x, desiredPosition.y, desiredPosition.z, owner.getYRot(), 0.0F);
 		preparePet(pet);
 		configurePet(pet, rule);
@@ -1272,120 +1488,6 @@ public final class PlayerEntitiesSystem {
 		}
 	}
 
-	private static long updatePetPosition(ServerPlayer owner, Mob pet, int slot, PetRule rule) {
-		Vec3 desiredPosition = resolveDesiredPosition(owner, slot);
-		double ownerDistanceSqr = pet.distanceToSqr(owner);
-		double creativeDistanceMultiplier = creativeDistanceMultiplier(owner);
-		double teleportDistance = (rule == null ? 8.0D : rule.teleportDistance) * creativeDistanceMultiplier;
-		double teleportDistanceSqr = teleportDistance * teleportDistance;
-		if (ownerDistanceSqr > teleportDistanceSqr) {
-			pet.snapTo(desiredPosition.x, desiredPosition.y, desiredPosition.z, owner.getYRot(), 0.0F);
-			pet.getNavigation().stop();
-			pet.setDeltaMovement(Vec3.ZERO);
-			clearFollowCommand(pet.getUUID());
-			scheduleNextIdleMove(pet, rule);
-			return activeSchedulerTickInterval();
-		}
-
-		double idleDistance = (rule == null ? 4.0D : rule.idleDistance) * creativeDistanceMultiplier;
-		double idleDistanceSqr = idleDistance * idleDistance;
-		if (ownerDistanceSqr <= idleDistanceSqr) {
-			clearFollowCommand(pet.getUUID());
-			return updatePetIdleMovement(owner, pet, idleDistance, idleDistanceSqr, rule);
-		}
-
-		double followSpeed = rule == null ? 1.25D : rule.followSpeed;
-		issueFollowCommandIfNeeded(pet, desiredPosition, followSpeed);
-		pet.getLookControl().setLookAt(desiredPosition.x, desiredPosition.y, desiredPosition.z, 30.0F, 30.0F);
-		return activeSchedulerTickInterval();
-	}
-
-	private static long updatePetIdleMovement(ServerPlayer owner, Mob pet, double idleDistance, double idleDistanceSqr, PetRule rule) {
-		if (pet == null || !pet.getNavigation().isDone()) {
-			return activeSchedulerTickInterval();
-		}
-
-		long gameTime = pet.level().getGameTime();
-		long nextMoveTick = NEXT_IDLE_MOVE_BY_PET.getOrDefault(pet.getUUID(), Long.MIN_VALUE);
-		if (gameTime < nextMoveTick) {
-			return clampScheduledDelay(nextMoveTick - gameTime);
-		}
-
-		Vec3 idleTarget = resolveIdleTarget(owner, pet, idleDistance, idleDistanceSqr, rule);
-		if (idleTarget == null) {
-			scheduleNextIdleMove(pet, rule);
-			return nextIdleMoveDelay(pet);
-		}
-
-		pet.getNavigation().moveTo(idleTarget.x, idleTarget.y, idleTarget.z, rule == null ? 0.75D : rule.idleMoveSpeed);
-		pet.getLookControl().setLookAt(idleTarget.x, idleTarget.y, idleTarget.z, 20.0F, 20.0F);
-		scheduleNextIdleMove(pet, rule);
-		return activeSchedulerTickInterval();
-	}
-
-	private static Vec3 resolveIdleTarget(ServerPlayer owner, Mob pet, double idleDistance, double idleDistanceSqr, PetRule rule) {
-		double idleWanderRadius = rule == null ? 2.0D : rule.idleWanderRadius;
-		Vec3 current = pet.position();
-		Vec3 offset = new Vec3(
-			(pet.getRandom().nextDouble() - 0.5D) * 2.0D * idleWanderRadius,
-			0.0D,
-			(pet.getRandom().nextDouble() - 0.5D) * 2.0D * idleWanderRadius
-		);
-		Vec3 candidate = current.add(offset);
-		if (candidate.distanceToSqr(owner.position()) > idleDistanceSqr) {
-			Vec3 ownerDelta = candidate.subtract(owner.position());
-			Vec3 horizontal = new Vec3(ownerDelta.x, 0.0D, ownerDelta.z);
-			if (horizontal.lengthSqr() <= 1.0E-6D) {
-				return null;
-			}
-			candidate = owner.position().add(horizontal.normalize().scale(Math.max(0.5D, idleDistance * 0.4D))).add(0.0D, 0.1D, 0.0D);
-		}
-		return candidate;
-	}
-
-	private static double creativeDistanceMultiplier(ServerPlayer owner) {
-		return owner != null && owner.isCreative() ? 2.0D : 1.0D;
-	}
-
-	private static void scheduleNextIdleMove(Mob pet, PetRule rule) {
-		if (pet == null) {
-			return;
-		}
-
-		long minInterval = Math.max(1L, rule == null ? 20L : rule.idleMinIntervalTicks);
-		long maxInterval = Math.max(minInterval, rule == null ? 60L : rule.idleMaxIntervalTicks);
-		long delay = minInterval;
-		if (maxInterval > minInterval) {
-			delay += pet.getRandom().nextInt((int) (maxInterval - minInterval + 1L));
-		}
-		NEXT_IDLE_MOVE_BY_PET.put(pet.getUUID(), pet.level().getGameTime() + delay);
-	}
-
-	private static void issueFollowCommandIfNeeded(Mob pet, Vec3 desiredPosition, double followSpeed) {
-		if (pet == null || desiredPosition == null) {
-			return;
-		}
-
-		UUID petId = pet.getUUID();
-		FollowCommand previous = FOLLOW_COMMANDS_BY_PET.get(petId);
-		boolean shouldRepath = previous == null
-			|| previous.target.distanceToSqr(desiredPosition) > 0.5625D
-			|| Math.abs(previous.speed - followSpeed) > 1.0E-4D
-			|| pet.getNavigation().isDone();
-		if (!shouldRepath) {
-			return;
-		}
-
-		pet.getNavigation().moveTo(desiredPosition.x, desiredPosition.y, desiredPosition.z, followSpeed);
-		FOLLOW_COMMANDS_BY_PET.put(petId, new FollowCommand(desiredPosition, followSpeed));
-	}
-
-	private static void clearFollowCommand(UUID petId) {
-		if (petId != null) {
-			FOLLOW_COMMANDS_BY_PET.remove(petId);
-		}
-	}
-
 	private static long activeSchedulerTickInterval() {
 		return Math.max(1L, settings.schedulerTickInterval);
 	}
@@ -1397,44 +1499,6 @@ public final class PlayerEntitiesSystem {
 	private static long idleSchedulerTickInterval() {
 		long activeInterval = activeSchedulerTickInterval();
 		return Math.max(activeInterval, Math.min(20L, activeInterval * 3L));
-	}
-
-	private static long clampScheduledDelay(long delay) {
-		return Math.max(activeSchedulerTickInterval(), Math.min(idleSchedulerTickInterval(), delay));
-	}
-
-	private static long nextIdleMoveDelay(Mob pet) {
-		if (pet == null) {
-			return idleSchedulerTickInterval();
-		}
-		long gameTime = pet.level().getGameTime();
-		long nextMoveTick = NEXT_IDLE_MOVE_BY_PET.getOrDefault(pet.getUUID(), gameTime + idleSchedulerTickInterval());
-		return clampScheduledDelay(nextMoveTick - gameTime);
-	}
-
-	private static Vec3 resolveDesiredPosition(ServerPlayer owner, int slot) {
-		SlotOffset offset = SLOT_OFFSETS[Math.max(0, Math.min(SLOT_OFFSETS.length - 1, slot))];
-		Vec3 horizontalForward = resolveFollowDirection(owner);
-		Vec3 right = new Vec3(-horizontalForward.z, 0.0D, horizontalForward.x);
-		Vec3 base = owner.position().add(0.0D, 0.10D, 0.0D);
-		return base.add(right.scale(offset.side())).subtract(horizontalForward.scale(offset.back()));
-	}
-
-	private static Vec3 resolveFollowDirection(ServerPlayer owner) {
-		Vec3 motion = owner.getDeltaMovement();
-		Vec3 horizontalMotion = new Vec3(motion.x, 0.0D, motion.z);
-		if (horizontalMotion.lengthSqr() > 1.0E-4D) {
-			return horizontalMotion.normalize();
-		}
-
-		float bodyYawRadians = owner.yBodyRot * (float) (Math.PI / 180.0D);
-		double x = -Mth.sin(bodyYawRadians);
-		double z = Mth.cos(bodyYawRadians);
-		Vec3 bodyForward = new Vec3(x, 0.0D, z);
-		if (bodyForward.lengthSqr() <= 1.0E-6D) {
-			return new Vec3(0.0D, 0.0D, 1.0D);
-		}
-		return bodyForward.normalize();
 	}
 
 	private static EntityType<?> resolvePetType(ItemStack stack) {
@@ -1473,37 +1537,6 @@ public final class PlayerEntitiesSystem {
 		return true;
 	}
 
-	private static boolean spawnManagedHomingArrow(
-		ServerPlayer player,
-		LivingEntity target,
-		Vec3 spawnPosition,
-		float speed,
-		float damage
-	) {
-		if (player == null || target == null || !target.isAlive() || spawnPosition == null || !(player.level() instanceof ServerLevel level)) {
-			return false;
-		}
-
-		Arrow arrow = new Arrow(level, player, new ItemStack(Items.ARROW), new ItemStack(Items.BOW));
-		arrow.setPos(spawnPosition.x, spawnPosition.y, spawnPosition.z);
-		Vec3 desired = target.getEyePosition().subtract(spawnPosition);
-		if (desired.lengthSqr() <= 1.0E-6D) {
-			desired = player.getLookAngle();
-		}
-		arrow.shoot(desired.x, desired.y, desired.z, Math.max((float) HOMING_ARROW_MIN_SPEED, speed), 0.0F);
-		arrow.setBaseDamage(Math.max(0.0F, damage));
-		arrow.setCritArrow(false);
-		arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
-		arrow.setNoGravity(true);
-		if (!level.addFreshEntity(arrow)) {
-			return false;
-		}
-
-		double homingSpeed = Math.max(HOMING_ARROW_MIN_SPEED, arrow.getDeltaMovement().length());
-		ACTIVE_HOMING_ARROWS.put(arrow.getUUID(), new HomingArrowState(target.getUUID(), homingSpeed, HOMING_ARROW_LIFETIME_TICKS));
-		return true;
-	}
-
 	private static boolean spawnManagedWebProjectile(
 		ServerPlayer player,
 		LivingEntity target,
@@ -1535,34 +1568,34 @@ public final class PlayerEntitiesSystem {
 		return true;
 	}
 
-	private static boolean spawnManagedExplosiveProjectile(
+	private static boolean spawnManagedHomingArrow(
 		ServerPlayer player,
 		LivingEntity target,
 		Vec3 spawnPosition,
-		PetRule rule,
-		SoundEvent soundEvent,
-		float soundVolume,
-		float soundPitch
+		float speed,
+		float damage
 	) {
-		if (player == null || target == null || spawnPosition == null || rule == null || !(player.level() instanceof ServerLevel level)) {
+		if (player == null || target == null || !target.isAlive() || spawnPosition == null || !(player.level() instanceof ServerLevel level)) {
 			return false;
 		}
-		Vec3 initialPosition = new Vec3(spawnPosition.x, spawnPosition.y, spawnPosition.z);
-		emitExplosiveProjectileLaunch(level, initialPosition, soundEvent, soundVolume, soundPitch);
-		UUID projectileId = UUID.randomUUID();
-		ACTIVE_EXPLOSIVE_PROJECTILES.put(
-			projectileId,
-			new ExplosiveProjectileState(
-				level.dimension().toString(),
-				player.getUUID(),
-				target.getUUID(),
-				initialPosition,
-				Math.max(EXPLOSIVE_PROJECTILE_MIN_SPEED, rule.attackSpeed),
-				Math.max(0.0F, rule.attackDamage),
-				Math.max(0.5F, rule.explosionRadius),
-				EXPLOSIVE_PROJECTILE_LIFETIME_TICKS
-			)
-		);
+
+		Arrow arrow = new Arrow(level, player, new ItemStack(Items.ARROW), new ItemStack(Items.BOW));
+		arrow.setPos(spawnPosition.x, spawnPosition.y, spawnPosition.z);
+		Vec3 desired = target.getEyePosition().subtract(spawnPosition);
+		if (desired.lengthSqr() <= 1.0E-6D) {
+			desired = player.getLookAngle();
+		}
+		arrow.shoot(desired.x, desired.y, desired.z, Math.max((float) HOMING_ARROW_MIN_SPEED, speed), 0.0F);
+		arrow.setBaseDamage(Math.max(0.0F, damage));
+		arrow.setCritArrow(false);
+		arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
+		arrow.setNoGravity(true);
+		if (!level.addFreshEntity(arrow)) {
+			return false;
+		}
+
+		double homingSpeed = Math.max(HOMING_ARROW_MIN_SPEED, arrow.getDeltaMovement().length());
+		ACTIVE_HOMING_ARROWS.put(arrow.getUUID(), new HomingArrowState(target.getUUID(), homingSpeed, HOMING_ARROW_LIFETIME_TICKS));
 		return true;
 	}
 
@@ -1604,6 +1637,37 @@ public final class PlayerEntitiesSystem {
 			arrow.setDeltaMovement(toTarget.normalize().scale(homingSpeed));
 			ACTIVE_HOMING_ARROWS.put(arrowId, new HomingArrowState(state.targetUuid, homingSpeed, state.remainingTicks - 1));
 		}
+	}
+
+	private static boolean spawnManagedExplosiveProjectile(
+		ServerPlayer player,
+		LivingEntity target,
+		Vec3 spawnPosition,
+		PetRule rule,
+		SoundEvent soundEvent,
+		float soundVolume,
+		float soundPitch
+	) {
+		if (player == null || target == null || spawnPosition == null || rule == null || !(player.level() instanceof ServerLevel level)) {
+			return false;
+		}
+		Vec3 initialPosition = new Vec3(spawnPosition.x, spawnPosition.y, spawnPosition.z);
+		emitExplosiveProjectileLaunch(level, initialPosition, soundEvent, soundVolume, soundPitch);
+		UUID projectileId = UUID.randomUUID();
+		ACTIVE_EXPLOSIVE_PROJECTILES.put(
+			projectileId,
+			new ExplosiveProjectileState(
+				level.dimension().toString(),
+				player.getUUID(),
+				target.getUUID(),
+				initialPosition,
+				Math.max(EXPLOSIVE_PROJECTILE_MIN_SPEED, rule.attackSpeed),
+				Math.max(0.0F, rule.attackDamage),
+				Math.max(0.5F, rule.explosionRadius),
+				EXPLOSIVE_PROJECTILE_LIFETIME_TICKS
+			)
+		);
+		return true;
 	}
 
 	private static void tickManagedWebProjectiles(MinecraftServer server) {
@@ -2189,19 +2253,6 @@ public final class PlayerEntitiesSystem {
 		return null;
 	}
 
-	private static AbstractArrow findArrow(MinecraftServer server, UUID entityId) {
-		if (server == null || entityId == null) {
-			return null;
-		}
-
-		for (ServerLevel level : server.getAllLevels()) {
-			if (level.getEntity(entityId) instanceof AbstractArrow arrow && arrow.isAlive()) {
-				return arrow;
-			}
-		}
-		return null;
-	}
-
 	private static void preparePet(Mob pet) {
 		if (pet == null) {
 			return;
@@ -2211,6 +2262,9 @@ public final class PlayerEntitiesSystem {
 		pet.setTarget(null);
 		pet.setAggressive(false);
 		pet.getNavigation().setCanFloat(true);
+		if (pet instanceof Bat bat) {
+			bat.setResting(false);
+		}
 	}
 
 	private static void tagManagedPet(Mob pet, UUID ownerId) {
@@ -2412,6 +2466,19 @@ public final class PlayerEntitiesSystem {
 		return false;
 	}
 
+	private static AbstractArrow findArrow(MinecraftServer server, UUID entityId) {
+		if (server == null || entityId == null) {
+			return null;
+		}
+
+		for (ServerLevel level : server.getAllLevels()) {
+			if (level.getEntity(entityId) instanceof AbstractArrow arrow && arrow.isAlive()) {
+				return arrow;
+			}
+		}
+		return null;
+	}
+
 	private static Item resolveItem(String itemId) {
 		Identifier identifier = Identifier.tryParse(itemId == null ? "" : itemId.trim());
 		return identifier == null ? null : BuiltInRegistries.ITEM.getValue(identifier);
@@ -2419,6 +2486,9 @@ public final class PlayerEntitiesSystem {
 
 	private static String defaultAbilityForItem(String itemId) {
 		String normalizedItemId = normalizeKey(itemId);
+		if ("minecraft:bat_spawn_egg".equals(normalizedItemId)) {
+			return PET_ABILITY_MOB_SCAN;
+		}
 		if ("minecraft:chicken_spawn_egg".equals(normalizedItemId)) {
 			return PET_ABILITY_FALL_DAMAGE_REDUCTION;
 		}
@@ -2446,18 +2516,30 @@ public final class PlayerEntitiesSystem {
 		return PET_ABILITY_NONE;
 	}
 
-	private static String defaultRarityForItem(String itemId) {
+	static double defaultPetScaleForItem(String itemId) {
 		String normalizedItemId = normalizeKey(itemId);
-		if ("minecraft:creeper_spawn_egg".equals(normalizedItemId)
+		if ("minecraft:bat_spawn_egg".equals(normalizedItemId)) {
+			return 0.4D;
+		}
+		if ("minecraft:chicken_spawn_egg".equals(normalizedItemId)) {
+			return 0.3D;
+		}
+		return 0.25D;
+	}
+
+	static String defaultRarityForItem(String itemId) {
+		String normalizedItemId = normalizeKey(itemId);
+		if ("minecraft:bat_spawn_egg".equals(normalizedItemId)
+			|| "minecraft:cow_spawn_egg".equals(normalizedItemId)
+			|| "minecraft:creeper_spawn_egg".equals(normalizedItemId)
 			|| "minecraft:skeleton_spawn_egg".equals(normalizedItemId)
-			|| "minecraft:spider_spawn_egg".equals(normalizedItemId)
-			|| "minecraft:zombie_spawn_egg".equals(normalizedItemId)) {
+			|| "minecraft:spider_spawn_egg".equals(normalizedItemId)) {
 			return PET_RARITY_RARE;
 		}
 		return PET_RARITY_COMMON;
 	}
 
-	private static String resolvePetItemId(String fileKey, JsonObject sourceRoot) {
+	static String resolvePetItemId(String fileKey, JsonObject sourceRoot) {
 		String configured = getString(sourceRoot, "item_id", "");
 		if (!configured.isBlank()) {
 			return configured.trim();
@@ -2535,11 +2617,11 @@ public final class PlayerEntitiesSystem {
 		return rawKey == null ? "" : rawKey.trim().toLowerCase();
 	}
 
-	private static String normalizeKey(String rawKey) {
+	static String normalizeKey(String rawKey) {
 		return rawKey == null ? "" : rawKey.trim().toLowerCase();
 	}
 
-	private static String normalizePetRarity(String rawRarity) {
+	static String normalizePetRarity(String rawRarity) {
 		String normalized = normalizeKey(rawRarity);
 		return switch (normalized) {
 			case PET_RARITY_COMMON, PET_RARITY_RARE, PET_RARITY_EPIC, PET_RARITY_MYTHIC -> normalized;
@@ -2554,7 +2636,7 @@ public final class PlayerEntitiesSystem {
 		return source.getAsJsonArray(key);
 	}
 
-	private static String getString(JsonObject source, String key, String fallback) {
+	static String getString(JsonObject source, String key, String fallback) {
 		if (source == null || key == null || !source.has(key) || !source.get(key).isJsonPrimitive()) {
 			return fallback;
 		}
@@ -2565,7 +2647,7 @@ public final class PlayerEntitiesSystem {
 		}
 	}
 
-	private static long getLong(JsonObject source, String key, long fallback) {
+	static long getLong(JsonObject source, String key, long fallback) {
 		if (source == null || key == null || !source.has(key) || !source.get(key).isJsonPrimitive()) {
 			return fallback;
 		}
@@ -2584,7 +2666,7 @@ public final class PlayerEntitiesSystem {
 		return (int) value;
 	}
 
-	private static double getDouble(JsonObject source, String key, double fallback) {
+	static double getDouble(JsonObject source, String key, double fallback) {
 		if (source == null || key == null || !source.has(key) || !source.get(key).isJsonPrimitive()) {
 			return fallback;
 		}
@@ -2595,7 +2677,7 @@ public final class PlayerEntitiesSystem {
 		}
 	}
 
-	private static boolean getBoolean(JsonObject source, String key, boolean fallback) {
+	static boolean getBoolean(JsonObject source, String key, boolean fallback) {
 		if (source == null || key == null || !source.has(key) || !source.get(key).isJsonPrimitive()) {
 			return fallback;
 		}
@@ -2606,10 +2688,25 @@ public final class PlayerEntitiesSystem {
 		}
 	}
 
-	private record SlotOffset(double side, double back) {
+	static String formatAbilityAmount(double value) {
+		double rounded = Math.round(value * 100.0D) / 100.0D;
+		if (Math.abs(rounded - Math.rint(rounded)) <= 1.0E-6D) {
+			return Long.toString(Math.round(rounded));
+		}
+		return Double.toString(rounded);
 	}
 
-	private record FollowCommand(Vec3 target, double speed) {
+	static String formatPercent(double value) {
+		return formatAbilityAmount(value * 100.0D) + "%";
+	}
+
+	static String formatCooldownSeconds(long ticks) {
+		double seconds = Math.max(0.0D, ticks / 20.0D);
+		double rounded = Math.round(seconds * 10.0D) / 10.0D;
+		if (Math.abs(rounded - Math.rint(rounded)) <= 1.0E-6D) {
+			return Long.toString(Math.round(rounded));
+		}
+		return Double.toString(rounded);
 	}
 
 	private record HomingArrowState(
@@ -2643,434 +2740,4 @@ public final class PlayerEntitiesSystem {
 	) {
 	}
 
-	private static final class Settings {
-		private final boolean enabled;
-		private final boolean entitiesEnabled;
-		private final long schedulerTickInterval;
-
-		private Settings(
-			boolean enabled,
-			boolean entitiesEnabled,
-			long schedulerTickInterval
-		) {
-			this.enabled = enabled;
-			this.entitiesEnabled = entitiesEnabled;
-			this.schedulerTickInterval = schedulerTickInterval;
-		}
-
-		private static Settings defaults() {
-			return new Settings(
-				true,
-				true,
-				5L
-			);
-		}
-
-		private static Settings fromJson(JsonObject source) {
-			Settings defaults = defaults();
-			boolean enabled = getBoolean(source, "enabled", defaults.enabled);
-			boolean entitiesEnabled = getBoolean(source, "entities_enabled", defaults.entitiesEnabled);
-			long schedulerTickInterval = clampLong(getLong(source, "scheduler_tick_interval", defaults.schedulerTickInterval), 1L, 20L);
-			return new Settings(
-				enabled,
-				entitiesEnabled,
-				schedulerTickInterval
-			);
-		}
-
-		private JsonObject toConfigJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty("enabled", enabled);
-			root.addProperty("entities_enabled", entitiesEnabled);
-			root.addProperty("scheduler_tick_interval", schedulerTickInterval);
-			return root;
-		}
-
-		private static long clampLong(long value, long min, long max) {
-			return Math.max(min, Math.min(max, value));
-		}
-
-		private static double clampDouble(double value, double min, double max) {
-			return Math.max(min, Math.min(max, value));
-		}
-	}
-
-	private static final class PetRule {
-		private final boolean enabled;
-		private final String itemId;
-		private final String rarity;
-		private final double petScale;
-		private final double followSpeed;
-		private final double idleMoveSpeed;
-		private final double idleDistance;
-		private final double teleportDistance;
-		private final double idleWanderRadius;
-		private final long idleMinIntervalTicks;
-		private final long idleMaxIntervalTicks;
-		private final int ambientSoundIntervalMultiplier;
-		private final float soundVolumeMultiplier;
-		private final String abilityType;
-		private final float attackDamage;
-		private final float attackSpeed;
-		private final long effectDurationTicks;
-		private final double playerDamageBonusAmount;
-		private final double fallDamageReductionAmount;
-		private final double maxHealthBonusAmount;
-		private final double armorBonusAmount;
-		private final double damageBlockAmount;
-		private final long cooldownTicks;
-		private final long shotDelayTicks;
-		private final double attackArcStepDegrees;
-		private final double attackRearOffset;
-		private final double attackRearSpread;
-		private final double attackLateralRadius;
-		private final double attackVerticalOffset;
-		private final float explosionRadius;
-		private final String soundEventId;
-
-		private PetRule(
-			boolean enabled,
-			String itemId,
-			String rarity,
-			double petScale,
-			double followSpeed,
-			double idleMoveSpeed,
-			double idleDistance,
-			double teleportDistance,
-			double idleWanderRadius,
-			long idleMinIntervalTicks,
-			long idleMaxIntervalTicks,
-			int ambientSoundIntervalMultiplier,
-			float soundVolumeMultiplier,
-			String abilityType,
-			float attackDamage,
-			float attackSpeed,
-			long effectDurationTicks,
-			double playerDamageBonusAmount,
-			double fallDamageReductionAmount,
-			double maxHealthBonusAmount,
-			double armorBonusAmount,
-			double damageBlockAmount,
-			long cooldownTicks,
-			long shotDelayTicks,
-			double attackArcStepDegrees,
-			double attackRearOffset,
-			double attackRearSpread,
-			double attackLateralRadius,
-			double attackVerticalOffset,
-			float explosionRadius,
-			String soundEventId
-		) {
-			this.enabled = enabled;
-			this.itemId = itemId;
-			this.rarity = rarity;
-			this.petScale = petScale;
-			this.followSpeed = followSpeed;
-			this.idleMoveSpeed = idleMoveSpeed;
-			this.idleDistance = idleDistance;
-			this.teleportDistance = teleportDistance;
-			this.idleWanderRadius = idleWanderRadius;
-			this.idleMinIntervalTicks = idleMinIntervalTicks;
-			this.idleMaxIntervalTicks = idleMaxIntervalTicks;
-			this.ambientSoundIntervalMultiplier = ambientSoundIntervalMultiplier;
-			this.soundVolumeMultiplier = soundVolumeMultiplier;
-			this.abilityType = abilityType;
-			this.attackDamage = attackDamage;
-			this.attackSpeed = attackSpeed;
-			this.effectDurationTicks = effectDurationTicks;
-			this.playerDamageBonusAmount = playerDamageBonusAmount;
-			this.fallDamageReductionAmount = fallDamageReductionAmount;
-			this.maxHealthBonusAmount = maxHealthBonusAmount;
-			this.armorBonusAmount = armorBonusAmount;
-			this.damageBlockAmount = damageBlockAmount;
-			this.cooldownTicks = cooldownTicks;
-			this.shotDelayTicks = shotDelayTicks;
-			this.attackArcStepDegrees = attackArcStepDegrees;
-			this.attackRearOffset = attackRearOffset;
-			this.attackRearSpread = attackRearSpread;
-			this.attackLateralRadius = attackLateralRadius;
-			this.attackVerticalOffset = attackVerticalOffset;
-			this.explosionRadius = explosionRadius;
-			this.soundEventId = soundEventId;
-		}
-
-		private static JsonObject defaultsForItem(String itemId, String abilityType) {
-			JsonObject root = new JsonObject();
-			String resolvedItemId = itemId == null ? "" : itemId.trim();
-			String resolvedAbilityType = normalizeKey(abilityType);
-			boolean usesRangedHomingArrow = PET_ABILITY_RANGED_HOMING_ARROW.equals(resolvedAbilityType);
-			boolean usesWebProjectile = PET_ABILITY_WEB_PROJECTILE.equals(resolvedAbilityType);
-			boolean usesExplosiveProjectile = PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(resolvedAbilityType);
-			boolean usesPlayerDamageBonus = PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(resolvedAbilityType);
-			boolean usesFallDamageReduction = PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(resolvedAbilityType);
-			boolean usesMaxHealthBonus = PET_ABILITY_MAX_HEALTH_BONUS.equals(resolvedAbilityType);
-			boolean usesArmorBonus = PET_ABILITY_ARMOR_BONUS.equals(resolvedAbilityType);
-			boolean usesDamageBlock = PET_ABILITY_DAMAGE_BLOCK.equals(resolvedAbilityType);
-			root.addProperty("enabled", true);
-			root.addProperty("item_id", resolvedItemId);
-			root.addProperty("rarity", defaultRarityForItem(resolvedItemId));
-			root.addProperty("pet_scale", 0.25D);
-			root.addProperty("follow_speed", 1.2D);
-			root.addProperty("idle_move_speed", 0.8D);
-			root.addProperty("idle_distance", 4.0D);
-			root.addProperty("teleport_distance", 8.0D);
-			root.addProperty("idle_wander_radius", 2.0D);
-			root.addProperty("idle_min_interval_ticks", 20L);
-			root.addProperty("idle_max_interval_ticks", 60L);
-			root.addProperty("ambient_sound_interval_multiplier", 3);
-			root.addProperty("sound_volume_multiplier", 0.2D);
-			root.addProperty("ability", resolvedAbilityType.isBlank() ? PET_ABILITY_NONE : resolvedAbilityType);
-			if (usesRangedHomingArrow) {
-				root.addProperty("attack_damage", 3.0D);
-				root.addProperty("attack_speed", 1.5D);
-				root.addProperty("cooldown_ticks", 5L * 20L);
-				root.addProperty("shot_delay_ticks", 10L);
-				root.addProperty("attack_arc_step_degrees", 18.0D);
-				root.addProperty("attack_rear_offset", 0.58D);
-				root.addProperty("attack_rear_spread", 0.20D);
-				root.addProperty("attack_lateral_radius", 0.45D);
-				root.addProperty("attack_vertical_offset", -0.34D);
-				root.addProperty("sound_event", BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.SKELETON_SHOOT).toString());
-			}
-			if (usesWebProjectile) {
-				root.addProperty("follow_speed", 1.0D);
-				root.addProperty("idle_move_speed", 0.75D);
-				root.addProperty("attack_damage", 1.5D);
-				root.addProperty("attack_speed", 1.0D);
-				root.addProperty("effect_duration_ticks", 100L);
-				root.addProperty("cooldown_ticks", 15L * 20L);
-				root.addProperty("shot_delay_ticks", 10L);
-				root.addProperty("attack_arc_step_degrees", 12.0D);
-				root.addProperty("attack_rear_offset", 0.50D);
-				root.addProperty("attack_rear_spread", 0.15D);
-				root.addProperty("attack_lateral_radius", 0.38D);
-				root.addProperty("attack_vertical_offset", -0.28D);
-				root.addProperty("sound_event", BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.LLAMA_SPIT).toString());
-			}
-			if (usesExplosiveProjectile) {
-				root.addProperty("follow_speed", 1.2D);
-				root.addProperty("idle_move_speed", 0.8D);
-				root.addProperty("attack_damage", 12.0D);
-				root.addProperty("attack_speed", 2.0D);
-				root.addProperty("cooldown_ticks", 60L * 20L);
-				root.addProperty("shot_delay_ticks", 10L);
-				root.addProperty("attack_arc_step_degrees", 10.0D);
-				root.addProperty("attack_rear_offset", 0.46D);
-				root.addProperty("attack_rear_spread", 0.12D);
-				root.addProperty("attack_lateral_radius", 0.35D);
-				root.addProperty("attack_vertical_offset", -0.26D);
-				root.addProperty("explosion_radius", 4D);
-				root.addProperty("sound_event", BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.CREEPER_PRIMED).toString());
-			}
-			if (usesPlayerDamageBonus) {
-				root.addProperty("player_damage_bonus", 1.0D);
-			}
-			if (usesFallDamageReduction) {
-				root.addProperty("fall_damage_reduction", 0.20D);
-			}
-			if (usesMaxHealthBonus) {
-				root.addProperty("max_health_bonus", 0.10D);
-			}
-			if (usesArmorBonus) {
-				root.addProperty("armor_bonus", 2.0D);
-			}
-			if (usesDamageBlock) {
-				root.addProperty("damage_block", 4.0D);
-				root.addProperty("cooldown_ticks", 30L * 20L);
-			}
-			return root;
-		}
-
-		private static PetRule fromJson(JsonObject source, String fileKey) {
-			if (source == null) {
-				return null;
-			}
-
-			String itemId = resolvePetItemId(fileKey, source);
-			if (itemId == null || itemId.isBlank()) {
-				return null;
-			}
-			String rarity = normalizePetRarity(getString(source, "rarity", PET_RARITY_COMMON));
-			double petScale = Settings.clampDouble(getDouble(source, "pet_scale", 0.25D), 0.01D, 4.0D);
-			double followSpeed = Settings.clampDouble(getDouble(source, "follow_speed", 1.2D), 0.05D, 4.0D);
-			double idleMoveSpeed = Settings.clampDouble(getDouble(source, "idle_move_speed", 0.8D), 0.05D, 4.0D);
-			double idleDistance = Settings.clampDouble(getDouble(source, "idle_distance", 4.0D), 0.5D, 32.0D);
-			double teleportDistance = Settings.clampDouble(getDouble(source, "teleport_distance", 8.0D), idleDistance, 64.0D);
-			double idleWanderRadius = Settings.clampDouble(getDouble(source, "idle_wander_radius", 2.0D), 0.0D, 16.0D);
-			long idleMinIntervalTicks = Settings.clampLong(getLong(source, "idle_min_interval_ticks", 20L), 1L, 20L * 60L);
-			long idleMaxIntervalTicks = Settings.clampLong(getLong(source, "idle_max_interval_ticks", 60L), idleMinIntervalTicks, 20L * 60L);
-			int ambientSoundIntervalMultiplier = (int) Settings.clampLong(getLong(source, "ambient_sound_interval_multiplier", 3L), 1L, 20L);
-			float soundVolumeMultiplier = (float) Settings.clampDouble(getDouble(source, "sound_volume_multiplier", 0.2D), 0.0D, 4.0D);
-			String abilityType = normalizeKey(getString(source, "ability", PET_ABILITY_NONE));
-			float attackDamage = (float) Settings.clampDouble(getDouble(source, "attack_damage", 0.0D), 0.0D, 1024.0D);
-			float attackSpeed = (float) Settings.clampDouble(getDouble(source, "attack_speed", 0.0D), 0.05D, 8.0D);
-			long effectDurationTicks = Settings.clampLong(getLong(source, "effect_duration_ticks", 0L), 0L, 20L * 60L);
-			double playerDamageBonusAmount = Settings.clampDouble(getDouble(source, "player_damage_bonus", 0.0D), 0.0D, 1024.0D);
-			double fallDamageReductionAmount = Settings.clampDouble(getDouble(source, "fall_damage_reduction", 0.0D), 0.0D, 1.0D);
-			double maxHealthBonusAmount = Settings.clampDouble(getDouble(source, "max_health_bonus", 0.0D), 0.0D, 10.0D);
-			double armorBonusAmount = Settings.clampDouble(getDouble(source, "armor_bonus", 0.0D), 0.0D, 1024.0D);
-			double damageBlockAmount = Settings.clampDouble(getDouble(source, "damage_block", 0.0D), 0.0D, 1024.0D);
-			long cooldownTicks = Settings.clampLong(getLong(source, "cooldown_ticks", 0L), 0L, 20L * 60L * 60L);
-			long shotDelayTicks = Settings.clampLong(getLong(source, "shot_delay_ticks", 0L), 0L, 20L * 60L);
-			double attackArcStepDegrees = Settings.clampDouble(getDouble(source, "attack_arc_step_degrees", 18.0D), 0.0D, 90.0D);
-			double attackRearOffset = Settings.clampDouble(getDouble(source, "attack_rear_offset", 0.58D), 0.0D, 4.0D);
-			double attackRearSpread = Settings.clampDouble(getDouble(source, "attack_rear_spread", 0.20D), 0.0D, 4.0D);
-			double attackLateralRadius = Settings.clampDouble(getDouble(source, "attack_lateral_radius", 0.45D), 0.0D, 4.0D);
-			double attackVerticalOffset = Settings.clampDouble(getDouble(source, "attack_vertical_offset", -0.34D), -4.0D, 4.0D);
-			float explosionRadius = (float) Settings.clampDouble(getDouble(source, "explosion_radius", 4.0D), 0.25D, 12.0D);
-			String soundEventId = getString(source, "sound_event", BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.SKELETON_SHOOT).toString());
-			return new PetRule(
-				getBoolean(source, "enabled", true),
-				itemId.trim(),
-				rarity,
-				petScale,
-				followSpeed,
-				idleMoveSpeed,
-				idleDistance,
-				teleportDistance,
-				idleWanderRadius,
-				idleMinIntervalTicks,
-				idleMaxIntervalTicks,
-				ambientSoundIntervalMultiplier,
-				soundVolumeMultiplier,
-				abilityType.isBlank() ? PET_ABILITY_NONE : abilityType,
-				attackDamage,
-				attackSpeed,
-				effectDurationTicks,
-				playerDamageBonusAmount,
-				fallDamageReductionAmount,
-				maxHealthBonusAmount,
-				armorBonusAmount,
-				damageBlockAmount,
-				cooldownTicks,
-				shotDelayTicks,
-				attackArcStepDegrees,
-				attackRearOffset,
-				attackRearSpread,
-				attackLateralRadius,
-				attackVerticalOffset,
-				explosionRadius,
-				soundEventId
-			);
-		}
-
-		private boolean canPerformReactiveAttack() {
-			if (!enabled || attackSpeed <= 0.0F || cooldownTicks <= 0L) {
-				return false;
-			}
-			if (PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType)) {
-				return attackDamage > 0.0F;
-			}
-			if (PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) {
-				return true;
-			}
-			return PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType) && explosionRadius > 0.0F && attackDamage > 0.0F;
-		}
-
-		private double playerDamageBonus() {
-			return enabled && PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType) ? playerDamageBonusAmount : 0.0D;
-		}
-
-		private double fallDamageReduction() {
-			return enabled && PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(abilityType) ? fallDamageReductionAmount : 0.0D;
-		}
-
-		private double maxHealthBonus() {
-			return enabled && PET_ABILITY_MAX_HEALTH_BONUS.equals(abilityType) ? maxHealthBonusAmount : 0.0D;
-		}
-
-		private double armorBonus() {
-			return enabled && PET_ABILITY_ARMOR_BONUS.equals(abilityType) ? armorBonusAmount : 0.0D;
-		}
-
-		private double damageBlockAmount() {
-			return enabled && PET_ABILITY_DAMAGE_BLOCK.equals(abilityType) ? damageBlockAmount : 0.0D;
-		}
-
-		private boolean canBlockIncomingDamage() {
-			return enabled && PET_ABILITY_DAMAGE_BLOCK.equals(abilityType) && damageBlockAmount > 0.0D && cooldownTicks > 0L;
-		}
-
-		private String abilityDescription() {
-			if (!enabled) {
-				return "";
-			}
-			if (PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType)) {
-				return "Active: Fires a homing arrow at your target.";
-			}
-			if (PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) {
-				return "Active: Launches a web projectile that slows enemies.";
-			}
-			if (PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType)) {
-				return "Active: Fires an explosive projectile at your target.";
-			}
-			if (PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType) && playerDamageBonusAmount > 0.0D) {
-				return "Passive: Increases player damage by " + formatAbilityAmount(playerDamageBonusAmount) + ".";
-			}
-			if (PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(abilityType) && fallDamageReductionAmount > 0.0D) {
-				return "Passive: Reduces fall damage by " + formatPercent(fallDamageReductionAmount) + ".";
-			}
-			if (PET_ABILITY_MAX_HEALTH_BONUS.equals(abilityType) && maxHealthBonusAmount > 0.0D) {
-				return "Passive: Increases max health by " + formatPercent(maxHealthBonusAmount) + ".";
-			}
-			if (PET_ABILITY_ARMOR_BONUS.equals(abilityType) && armorBonusAmount > 0.0D) {
-				return "Passive: Increases armor by " + formatAbilityAmount(armorBonusAmount) + ".";
-			}
-			if (PET_ABILITY_DAMAGE_BLOCK.equals(abilityType) && damageBlockAmount > 0.0D) {
-				return "Active: Blocks " + formatAbilityAmount(damageBlockAmount) + " incoming damage.";
-			}
-			return "";
-		}
-
-		private String cooldownDescription() {
-			if (!enabled || cooldownTicks <= 0L || PET_ABILITY_NONE.equals(abilityType)) {
-				return "";
-			}
-			return "Cooldown: " + formatCooldownSeconds(cooldownTicks) + "s";
-		}
-
-		private boolean hasAbility() {
-			return enabled && !PET_ABILITY_NONE.equals(abilityType);
-		}
-
-		private SoundEvent resolveSoundEvent() {
-			Identifier identifier = Identifier.tryParse(soundEventId == null ? "" : soundEventId.trim());
-			if (identifier == null) {
-				return defaultSoundEvent();
-			}
-			SoundEvent soundEvent = BuiltInRegistries.SOUND_EVENT.getValue(identifier);
-			return soundEvent == null ? defaultSoundEvent() : soundEvent;
-		}
-
-		private SoundEvent defaultSoundEvent() {
-			if (PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) {
-				return SoundEvents.LLAMA_SPIT;
-			}
-			if (PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType)) {
-				return SoundEvents.CREEPER_PRIMED;
-			}
-			return SoundEvents.SKELETON_SHOOT;
-		}
-
-		private static String formatAbilityAmount(double value) {
-			double rounded = Math.round(value * 100.0D) / 100.0D;
-			if (Math.abs(rounded - Math.rint(rounded)) <= 1.0E-6D) {
-				return Long.toString(Math.round(rounded));
-			}
-			return Double.toString(rounded);
-		}
-
-		private static String formatPercent(double value) {
-			return formatAbilityAmount(value * 100.0D) + "%";
-		}
-
-		private static String formatCooldownSeconds(long ticks) {
-			double seconds = Math.max(0.0D, ticks / 20.0D);
-			double rounded = Math.round(seconds * 10.0D) / 10.0D;
-			if (Math.abs(rounded - Math.rint(rounded)) <= 1.0E-6D) {
-				return Long.toString(Math.round(rounded));
-			}
-			return Double.toString(rounded);
-		}
-	}
 }

@@ -96,7 +96,7 @@ public final class PetAbilityHud {
 			int itemX = slotX + ((ABILITY_SLOT_SIZE - ABILITY_ITEM_RENDER_SIZE) / 2);
 			int itemY = slotY + ((ABILITY_SLOT_SIZE - ABILITY_ITEM_RENDER_SIZE) / 2);
 			renderScaledAbilityItem(context, stack, itemX, itemY);
-			renderAbilityCooldownOverlay(context, client, stack, slot, slotX, slotY, itemX, itemY);
+			renderAbilityCooldownOverlay(context, client, player, stack, slot, slotX, slotY, itemX, itemY);
 		}
 	}
 
@@ -123,6 +123,7 @@ public final class PetAbilityHud {
 	private static void renderAbilityCooldownOverlay(
 		GuiGraphicsExtractor context,
 		Minecraft client,
+		LocalPlayer player,
 		ItemStack stack,
 		int slot,
 		int slotX,
@@ -134,7 +135,7 @@ public final class PetAbilityHud {
 			return;
 		}
 
-		int totalCooldownTicks = PlayerEntitiesSystem.abilityCooldownTicks(stack);
+		int totalCooldownTicks = PlayerEntitiesSystem.abilityCooldownTicks(player, slot, stack);
 		if (totalCooldownTicks <= 0 || slot < 0 || slot >= PET_ABILITY_COOLDOWN_END_TICKS.length) {
 			return;
 		}

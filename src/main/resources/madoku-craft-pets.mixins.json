@@ -3,12 +3,14 @@
 	"package": "madoku.craft.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
+		"BatPetBehaviorMixin",
+		"BatTargetAccessor",
 		"CreativeModeTabsSpawnEggsMixin",
 		"EntityPetBehaviorMixin",
 		"InventoryMenuPlayerEntitiesSlotsMixin",
+		"ItemCostEggVariantsMixin",
 		"LivingEntityPetAbilityDamageMixin",
 		"LivingEntityPetBehaviorMixin",
-		"MerchantOfferEggBaseCostMixin",
 		"MobPetSoundMixin",
 		"PlayerEntitiesInventoryMixin",
 		"ServerGamePacketListenerCreativePetSlotMixin"
