@@ -291,7 +291,7 @@ public final class PlayerEntitiesSystem {
 	public static boolean isManagedPet(Entity entity) {
 		return entity != null
 			&& (ACTIVE_PET_IDS.contains(entity.getUUID())
-				|| entity.entityTags().contains(MANAGED_PET_TAG)
+				|| entity.getTags().contains(MANAGED_PET_TAG)
 				|| PetSoundState.isManaged(entity));
 	}
 
@@ -1505,7 +1505,7 @@ public final class PlayerEntitiesSystem {
 		if (!(stack.getItem() instanceof SpawnEggItem)) {
 			return null;
 		}
-		return SpawnEggItem.getType(stack);
+		return ((SpawnEggItem) stack.getItem()).getType(stack);
 	}
 
 	private static boolean spawnPetReactiveAttack(ServerPlayer player, LivingEntity target, Vec3 spawnPosition, PetRule rule) {
@@ -2283,7 +2283,7 @@ public final class PlayerEntitiesSystem {
 
 		for (ServerLevel level : server.getAllLevels()) {
 			for (Entity entity : level.getAllEntities()) {
-				if (entity != null && entity.entityTags().contains(MANAGED_PET_TAG)) {
+				if (entity != null && entity.getTags().contains(MANAGED_PET_TAG)) {
 					entity.discard();
 				}
 			}
@@ -2571,7 +2571,7 @@ public final class PlayerEntitiesSystem {
 		String normalizedItemId = normalizeKey(itemId);
 		PetSoundState.set(pet.getUUID(), normalizedItemId);
 		String existingTag = null;
-		for (String tag : pet.entityTags()) {
+		for (String tag : pet.getTags()) {
 			if (tag != null && tag.startsWith(MANAGED_PET_ITEM_PREFIX)) {
 				existingTag = tag;
 				break;
@@ -2594,7 +2594,7 @@ public final class PlayerEntitiesSystem {
 		if (entity == null) {
 			return "";
 		}
-		for (String tag : entity.entityTags()) {
+		for (String tag : entity.getTags()) {
 			if (tag != null && tag.startsWith(MANAGED_PET_ITEM_PREFIX)) {
 				return tag.substring(MANAGED_PET_ITEM_PREFIX.length());
 			}

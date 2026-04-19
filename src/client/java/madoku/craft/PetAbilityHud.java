@@ -7,7 +7,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
@@ -50,7 +50,7 @@ public final class PetAbilityHud {
 		HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, HUD_ID, PetAbilityHud::render);
 	}
 
-	private static void render(GuiGraphicsExtractor context, DeltaTracker tickCounter) {
+	private static void render(GuiGraphics context, DeltaTracker tickCounter) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
 		if (player == null || client.level == null || client.options.hideGui || player.isSpectator() || !PlayerEntitiesSystem.isEnabled()) {
@@ -112,16 +112,16 @@ public final class PetAbilityHud {
 		return visible;
 	}
 
-	private static void renderScaledAbilityItem(GuiGraphicsExtractor context, ItemStack stack, int x, int y) {
+	private static void renderScaledAbilityItem(GuiGraphics context, ItemStack stack, int x, int y) {
 		context.pose().pushMatrix();
 		context.pose().translate(x, y);
 		context.pose().scale(ABILITY_ITEM_SCALE, ABILITY_ITEM_SCALE);
-		context.item(stack, 0, 0);
+		context.renderItem(stack, 0, 0);
 		context.pose().popMatrix();
 	}
 
 	private static void renderAbilityCooldownOverlay(
-		GuiGraphicsExtractor context,
+		GuiGraphics context,
 		Minecraft client,
 		LocalPlayer player,
 		ItemStack stack,
@@ -153,7 +153,7 @@ public final class PetAbilityHud {
 	}
 
 	private static void renderAbilityCooldownLabel(
-		GuiGraphicsExtractor context,
+		GuiGraphics context,
 		Minecraft client,
 		int slotX,
 		int slotY,
@@ -167,7 +167,7 @@ public final class PetAbilityHud {
 				/ ABILITY_COOLDOWN_TEXT_SCALE;
 		context.pose().pushMatrix();
 		context.pose().scale(ABILITY_COOLDOWN_TEXT_SCALE, ABILITY_COOLDOWN_TEXT_SCALE);
-		context.text(
+		context.drawString(
 			client.font,
 			cooldownText,
 			Math.round(scaledTextX),
@@ -178,7 +178,7 @@ public final class PetAbilityHud {
 		context.pose().popMatrix();
 	}
 
-	private static int[] computeAbilitySlotXs(GuiGraphicsExtractor context, LocalPlayer player, int slotCount) {
+	private static int[] computeAbilitySlotXs(GuiGraphics context, LocalPlayer player, int slotCount) {
 		int[] xs = new int[Math.max(0, slotCount)];
 		if (slotCount <= 0) {
 			return xs;

@@ -6,6 +6,7 @@ import madoku.craft.clock.MadokuTicks;
 import madoku.craft.data.MadokuData;
 import madoku.craft.time.MadokuTime;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
+import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
@@ -22,6 +23,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.monster.Witch;
+import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -75,6 +77,7 @@ public final class MadokuEntities {
 
 	public static void initialize() {
 		FabricDefaultAttributeRegistry.register(HAG, Witch.createAttributes());
+		ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.SPAWN_EGGS).register(entries -> entries.accept(HAG_SPAWN_EGG));
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
 			if (!(entity instanceof Witch witch) || witch.getType() != EntityType.WITCH || !(world instanceof ServerLevel serverLevel)) {
 				return;
@@ -284,7 +287,7 @@ public final class MadokuEntities {
 		}
 		hag.addTag(WANDERING_HAG_TAG);
 		String existingDespawnTag = null;
-		for (String tag : hag.entityTags()) {
+		for (String tag : hag.getTags()) {
 			if (tag != null && tag.startsWith(WANDERING_HAG_DESPAWN_TIME_PREFIX)) {
 				existingDespawnTag = tag;
 				break;
@@ -297,7 +300,7 @@ public final class MadokuEntities {
 	}
 
 	static boolean isWanderingHag(Hag hag) {
-		return hag != null && hag.entityTags().contains(WANDERING_HAG_TAG);
+		return hag != null && hag.getTags().contains(WANDERING_HAG_TAG);
 	}
 
 	static boolean shouldDespawnWanderingHag(Hag hag, ServerLevel level) {
@@ -309,7 +312,7 @@ public final class MadokuEntities {
 		if (hag == null) {
 			return null;
 		}
-		for (String tag : hag.entityTags()) {
+		for (String tag : hag.getTags()) {
 			if (tag == null || !tag.startsWith(WANDERING_HAG_DESPAWN_TIME_PREFIX)) {
 				continue;
 			}
@@ -331,7 +334,7 @@ public final class MadokuEntities {
 		if (MadokuTime.isEnabled()) {
 			return Math.max(0L, MadokuTime.getDay(MadokuTime.getCurrentAbsoluteDayTime(level)));
 		}
-		return Math.max(0L, Math.floorDiv(level.getOverworldClockTime(), 24000L));
+		return Math.max(0L, Math.floorDiv(level.getDayTime(), 24000L));
 	}
 
 	private static long currentAbsoluteDayTime(ServerLevel level) {
@@ -341,7 +344,7 @@ public final class MadokuEntities {
 		if (MadokuTime.isEnabled()) {
 			return Math.max(0L, MadokuTime.getCurrentAbsoluteDayTime(level));
 		}
-		return Math.max(0L, level.getOverworldClockTime());
+		return Math.max(0L, level.getDayTime());
 	}
 
 	private static long randomSpawnIntervalDays(MinecraftServer server) {

@@ -14,7 +14,7 @@ public final class PetAbilityHudSync {
 		if (initialized) {
 			return;
 		}
-		PayloadTypeRegistry.clientboundPlay().register(PetAbilityHudPayload.TYPE, PetAbilityHudPayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(PetAbilityHudPayload.TYPE, PetAbilityHudPayload.CODEC);
 		initialized = true;
 	}
 

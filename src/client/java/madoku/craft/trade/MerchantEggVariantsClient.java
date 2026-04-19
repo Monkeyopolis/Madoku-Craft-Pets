@@ -5,7 +5,7 @@ import madoku.craft.mixin.client.MerchantScreenAccessor;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.MerchantScreen;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
@@ -34,13 +34,13 @@ public final class MerchantEggVariantsClient {
 				return;
 			}
 
-			ScreenEvents.afterExtract(merchantScreen).register((currentScreen, graphics, mouseX, mouseY, tickProgress) -> {
+			ScreenEvents.afterRender(merchantScreen).register((currentScreen, graphics, mouseX, mouseY, tickProgress) -> {
 				renderEggVariants(merchantScreen, graphics);
 			});
 		});
 	}
 
-	private static void renderEggVariants(MerchantScreen screen, GuiGraphicsExtractor graphics) {
+	private static void renderEggVariants(MerchantScreen screen, GuiGraphics graphics) {
 		if (!(screen.getMenu() instanceof MerchantMenu menu)) {
 			return;
 		}
@@ -63,7 +63,7 @@ public final class MerchantEggVariantsClient {
 		}
 	}
 
-	private static void renderEggCost(GuiGraphicsExtractor graphics, ItemStack realCost, ItemStack baseCost, int x, int y) {
+	private static void renderEggCost(GuiGraphics graphics, ItemStack realCost, ItemStack baseCost, int x, int y) {
 		if (!realCost.is(Items.EGG) && !baseCost.is(Items.EGG)) {
 			return;
 		}
@@ -71,15 +71,15 @@ public final class MerchantEggVariantsClient {
 		Font font = Minecraft.getInstance().font;
 		ItemStack displayRealCost = displayStack(realCost);
 		ItemStack displayBaseCost = displayStack(baseCost);
-		graphics.item(displayRealCost, x, y);
+		graphics.renderItem(displayRealCost, x, y);
 
 		if (baseCost.getCount() == realCost.getCount()) {
-			graphics.itemDecorations(font, displayRealCost, x, y);
+			graphics.renderItemDecorations(font, displayRealCost, x, y);
 			return;
 		}
 
-		graphics.itemDecorations(font, displayBaseCost, x, y, baseCost.getCount() == 1 ? "1" : null);
-		graphics.itemDecorations(font, displayRealCost, x + 14, y, realCost.getCount() == 1 ? "1" : null);
+		graphics.renderItemDecorations(font, displayBaseCost, x, y, baseCost.getCount() == 1 ? "1" : null);
+		graphics.renderItemDecorations(font, displayRealCost, x + 14, y, realCost.getCount() == 1 ? "1" : null);
 		graphics.blitSprite(RenderPipelines.GUI, DISCOUNT_STRIKETHROUGH_SPRITE, x + 7, y + 12, 9, 2);
 	}
 

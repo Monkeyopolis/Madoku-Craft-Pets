@@ -208,7 +208,7 @@ public class Hag extends Witch implements Merchant {
 		if (this.level() instanceof ServerLevel serverLevel) {
 			absoluteDayTime = MadokuTime.getCurrentAbsoluteDayTime(serverLevel);
 		} else {
-			absoluteDayTime = this.level().getOverworldClockTime();
+			absoluteDayTime = this.level().getDayTime();
 		}
 		long day = Math.max(0L, MadokuTime.getDay(absoluteDayTime));
 		return Math.floorDiv(day, TRADE_REFRESH_DAYS);

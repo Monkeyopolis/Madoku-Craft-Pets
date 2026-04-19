@@ -7,7 +7,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,7 +20,7 @@ public abstract class CreativeModeInventoryScreenPetSlotMixin {
 	private static ItemStack madokuCraft$lastCreativePetSelection = ItemStack.EMPTY;
 
 	@Inject(method = "slotClicked", at = @At("HEAD"), cancellable = true)
-	private void madokuCraft$handlePetSlotClicksInCreative(Slot slot, int slotId, int button, ContainerInput clickType, CallbackInfo ci) {
+	private void madokuCraft$handlePetSlotClicksInCreative(Slot slot, int slotId, int button, ClickType clickType, CallbackInfo ci) {
 		Minecraft client = Minecraft.getInstance();
 		if (slot == null) {
 			debugCreativeEvent("pet.creative_slot_observed", client, null, null, slotId)
@@ -78,7 +78,7 @@ public abstract class CreativeModeInventoryScreenPetSlotMixin {
 		ci.cancel();
 	}
 
-	private boolean invokeHandleContainerInput(Minecraft client, Slot rawSlot, Slot actualSlot, int button, ContainerInput clickType) {
+	private boolean invokeHandleContainerInput(Minecraft client, Slot rawSlot, Slot actualSlot, int button, ClickType clickType) {
 		if (client == null || client.player == null || client.gameMode == null || clickType == null) {
 			debugCreativeEvent("pet.creative_click_forward_failed", client, rawSlot, actualSlot, actualSlot == null ? -1 : actualSlot.index)
 				.field("reason", "missing_input")
@@ -92,7 +92,7 @@ public abstract class CreativeModeInventoryScreenPetSlotMixin {
 			return false;
 		}
 		MultiPlayerGameMode gameMode = client.gameMode;
-		gameMode.handleContainerInput(
+		gameMode.handleInventoryMouseClick(
 			((AbstractContainerScreenAccessor) this).madokuCraft$getMenu().containerId,
 			actualSlot.index,
 			button,
@@ -102,7 +102,7 @@ public abstract class CreativeModeInventoryScreenPetSlotMixin {
 		return true;
 	}
 
-	private boolean applyCreativePetSlotWrite(Minecraft client, Slot rawSlot, Slot actualSlot, int slotId, int button, ContainerInput clickType) {
+	private boolean applyCreativePetSlotWrite(Minecraft client, Slot rawSlot, Slot actualSlot, int slotId, int button, ClickType clickType) {
 		if (client == null || client.player == null || client.gameMode == null || actualSlot == null) {
 			return false;
 		}
@@ -112,7 +112,7 @@ public abstract class CreativeModeInventoryScreenPetSlotMixin {
 			return false;
 		}
 
-		if (clickType != ContainerInput.PICKUP) {
+		if (clickType != ClickType.PICKUP) {
 			return false;
 		}
 
@@ -157,8 +157,8 @@ public abstract class CreativeModeInventoryScreenPetSlotMixin {
 		return false;
 	}
 
-	private void rememberCreativePetSelection(Minecraft client, Slot rawSlot, Slot actualSlot, int slotId, ContainerInput clickType) {
-		if (clickType != ContainerInput.PICKUP || actualSlot == null) {
+	private void rememberCreativePetSelection(Minecraft client, Slot rawSlot, Slot actualSlot, int slotId, ClickType clickType) {
+		if (clickType != ClickType.PICKUP || actualSlot == null) {
 			return;
 		}
 

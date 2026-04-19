@@ -16,7 +16,7 @@ public final class PetSoundStateSync {
 		if (initialized) {
 			return;
 		}
-		PayloadTypeRegistry.clientboundPlay().register(PetSoundStatePayload.TYPE, PetSoundStatePayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(PetSoundStatePayload.TYPE, PetSoundStatePayload.CODEC);
 		initialized = true;
 	}
 
