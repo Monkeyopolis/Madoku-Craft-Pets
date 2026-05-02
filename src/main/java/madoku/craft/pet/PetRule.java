@@ -2,7 +2,7 @@ package madoku.craft.pet;
 
 import com.google.gson.JsonObject;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 
@@ -366,11 +366,11 @@ final class PetRule {
 	}
 
 	SoundEvent resolveSoundEvent() {
-		Identifier identifier = Identifier.tryParse(soundEventId == null ? "" : soundEventId.trim());
+		ResourceLocation identifier = ResourceLocation.tryParse(soundEventId == null ? "" : soundEventId.trim());
 		if (identifier == null) {
 			return defaultSoundEvent();
 		}
-		SoundEvent soundEvent = BuiltInRegistries.SOUND_EVENT.getValue(identifier);
+		SoundEvent soundEvent = BuiltInRegistries.SOUND_EVENT.get(identifier);
 		return soundEvent == null ? defaultSoundEvent() : soundEvent;
 	}
 
@@ -400,3 +400,5 @@ final class PetRule {
 		return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.SKELETON_SHOOT).toString();
 	}
 }
+
+

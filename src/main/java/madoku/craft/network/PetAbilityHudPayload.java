@@ -5,7 +5,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 public record PetAbilityHudPayload(
 	int slot0RemainingTicks,
@@ -14,7 +14,7 @@ public record PetAbilityHudPayload(
 	int slot3RemainingTicks
 ) implements CustomPacketPayload {
 	public static final CustomPacketPayload.Type<PetAbilityHudPayload> TYPE =
-		new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "pet_ability_hud"));
+		new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "pet_ability_hud"));
 	public static final StreamCodec<RegistryFriendlyByteBuf, PetAbilityHudPayload> CODEC =
 		StreamCodec.composite(
 			ByteBufCodecs.VAR_INT,

@@ -86,8 +86,9 @@ public class Hag extends Witch implements Merchant {
 	}
 
 	@Override
-	protected void customServerAiStep(ServerLevel level) {
-		if (MadokuEntities.shouldDespawnWanderingHag(this, level)) {
+	protected void customServerAiStep() {
+		ServerLevel level = this.level() instanceof ServerLevel serverLevel ? serverLevel : null;
+		if (level != null && MadokuEntities.shouldDespawnWanderingHag(this, level)) {
 			this.discard();
 			return;
 		}
@@ -95,7 +96,7 @@ public class Hag extends Witch implements Merchant {
 			this.getNavigation().stop();
 			this.setTarget(null);
 		}
-		super.customServerAiStep(level);
+		super.customServerAiStep();
 		if (this.tradingPlayer != null) {
 			this.getNavigation().stop();
 		}
@@ -104,7 +105,6 @@ public class Hag extends Witch implements Merchant {
 	@Override
 	public void setTradingPlayer(Player player) {
 		this.tradingPlayer = player;
-		sanitizeOfferPrices(this.offers);
 	}
 
 	@Override
@@ -119,7 +119,6 @@ public class Hag extends Witch implements Merchant {
 			this.offers = createSpawnEggOffers(currentWeek);
 			this.offerRefreshWeek = currentWeek;
 		}
-		sanitizeOfferPrices(this.offers);
 		return this.offers;
 	}
 
@@ -127,7 +126,6 @@ public class Hag extends Witch implements Merchant {
 	public void overrideOffers(MerchantOffers offers) {
 		this.offers = offers;
 		this.offerRefreshWeek = currentOfferWeek();
-		sanitizeOfferPrices(this.offers);
 	}
 
 	@Override
@@ -166,7 +164,6 @@ public class Hag extends Witch implements Merchant {
 		return this.level().isClientSide();
 	}
 
-	@Override
 	public boolean stillValid(Player player) {
 		return this.isAlive() && this.distanceToSqr(player) <= 16.0D;
 	}
@@ -188,19 +185,6 @@ public class Hag extends Witch implements Merchant {
 			offers.add(createSpawnEggOffer(item, petSystemEnabled));
 		}
 		return offers;
-	}
-
-	private static void sanitizeOfferPrices(MerchantOffers offers) {
-		if (offers == null || offers.isEmpty()) {
-			return;
-		}
-		for (MerchantOffer offer : offers) {
-			if (offer == null) {
-				continue;
-			}
-			offer.resetSpecialPriceDiff();
-			offer.setSpecialPriceDiff(0);
-		}
 	}
 
 	private long currentOfferWeek() {
@@ -304,11 +288,11 @@ public class Hag extends Witch implements Merchant {
 
 	private int emeraldCost(Item item) {
 		return switch (petRarity(item)) {
-			case PET_RARITY_MYTHIC -> 128;
-			case PET_RARITY_EPIC -> 96;
-			case PET_RARITY_RARE -> 64;
-			case PET_RARITY_COMMON -> 32;
-			default -> 32;
+			case PET_RARITY_MYTHIC -> 64;
+			case PET_RARITY_EPIC -> 48;
+			case PET_RARITY_RARE -> 32;
+			case PET_RARITY_COMMON -> 16;
+			default -> 16;
 		};
 	}
 

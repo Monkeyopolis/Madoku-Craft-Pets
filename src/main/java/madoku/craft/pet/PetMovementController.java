@@ -36,7 +36,7 @@ final class PetMovementController {
 		double teleportDistance = (rule == null ? 8.0D : rule.teleportDistance) * creativeDistanceMultiplier;
 		double teleportDistanceSqr = teleportDistance * teleportDistance;
 		if (ownerDistanceSqr > teleportDistanceSqr) {
-			pet.snapTo(desiredPosition.x, desiredPosition.y, desiredPosition.z, owner.getYRot(), 0.0F);
+			pet.moveTo(desiredPosition.x, desiredPosition.y, desiredPosition.z, owner.getYRot(), 0.0F);
 			pet.getNavigation().stop();
 			pet.setDeltaMovement(Vec3.ZERO);
 			clearFollowCommand(pet.getUUID(), followCommandsByPet);

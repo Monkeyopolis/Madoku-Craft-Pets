@@ -69,9 +69,9 @@ public abstract class EntityPetBehaviorMixin {
 	}
 
 	@Inject(method = "canBeCollidedWith", at = @At("HEAD"), cancellable = true)
-	private void madokuCraft$disablePetBeingCollidedWith(Entity other, CallbackInfoReturnable<Boolean> cir) {
+	private void madokuCraft$disablePetBeingCollidedWith(CallbackInfoReturnable<Boolean> cir) {
 		Entity self = (Entity) (Object) this;
-		if (PlayerEntitiesSystem.isManagedPet(self) || PlayerEntitiesSystem.isManagedPet(other)) {
+		if (PlayerEntitiesSystem.isManagedPet(self)) {
 			cir.setReturnValue(false);
 		}
 	}

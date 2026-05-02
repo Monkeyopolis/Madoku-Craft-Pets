@@ -3,18 +3,18 @@ package madoku.craft.entity;
 import madoku.craft.pets.Madokucraftpets;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.WitchRenderer;
-import net.minecraft.client.renderer.entity.state.WitchRenderState;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.monster.Witch;
 
 public class HagRenderer extends WitchRenderer {
-	private static final Identifier HAG_TEXTURE = Identifier.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "textures/entities/hag.png");
+	private static final ResourceLocation HAG_TEXTURE = ResourceLocation.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "textures/entities/hag.png");
 
 	public HagRenderer(EntityRendererProvider.Context context) {
 		super(context);
 	}
 
 	@Override
-	public Identifier getTextureLocation(WitchRenderState renderState) {
+	public ResourceLocation getTextureLocation(Witch witch) {
 		return HAG_TEXTURE;
 	}
 }

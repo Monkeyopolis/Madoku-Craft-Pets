@@ -13,25 +13,26 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
-import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.inventory.Slot;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 public final class PlayerEntitiesInventoryClient {
-	private static final Identifier SURVIVAL_INVENTORY_TEXTURE =
-		Identifier.fromNamespaceAndPath("madoku-craft-pets", "textures/containers/survival_pet_inventory.png");
-	private static final Identifier CREATIVE_INVENTORY_TEXTURE =
-		Identifier.fromNamespaceAndPath("madoku-craft-pets", "textures/containers/creative_pet_inventory.png");
-	private static final Identifier RECIPE_BUTTON_TEXTURE =
-		Identifier.fromNamespaceAndPath("madoku-craft-pets", "textures/icons/button.png");
-	private static final Identifier RECIPE_BUTTON_HIGHLIGHTED_TEXTURE =
-		Identifier.fromNamespaceAndPath("madoku-craft-pets", "textures/icons/button_highlighted.png");
-	private static final Identifier ENTITY_SLOT_TEXTURE =
-		Identifier.fromNamespaceAndPath("madoku-craft-pets", "textures/icons/trinket.png");
+	private static final ResourceLocation SURVIVAL_INVENTORY_TEXTURE =
+		ResourceLocation.fromNamespaceAndPath("madoku-craft-pets", "textures/containers/survival_pet_inventory.png");
+	private static final ResourceLocation CREATIVE_INVENTORY_TEXTURE =
+		ResourceLocation.fromNamespaceAndPath("madoku-craft-pets", "textures/containers/creative_pet_inventory.png");
+	private static final ResourceLocation RECIPE_BUTTON_TEXTURE =
+		ResourceLocation.fromNamespaceAndPath("madoku-craft-pets", "textures/icons/button.png");
+	private static final ResourceLocation RECIPE_BUTTON_HIGHLIGHTED_TEXTURE =
+		ResourceLocation.fromNamespaceAndPath("madoku-craft-pets", "textures/icons/button_highlighted.png");
+	private static final ResourceLocation ENTITY_SLOT_TEXTURE =
+		ResourceLocation.fromNamespaceAndPath("madoku-craft-pets", "textures/icons/trinket.png");
 	private static final int TEXTURE_SIZE = 256;
 	private static final int INVENTORY_WIDTH = 176;
 	private static final int INVENTORY_HEIGHT = 166;
@@ -65,6 +66,7 @@ public final class PlayerEntitiesInventoryClient {
 	private static final int CREATIVE_PLAYER_PREVIEW_BOTTOM = 48;
 	private static final int CREATIVE_PLAYER_PREVIEW_SCALE = 20;
 	private static final float CREATIVE_PLAYER_PREVIEW_VERTICAL_OFFSET = 0.0F;
+	private static final Map<CreativeModeInventoryScreen, CreativeLayoutSnapshot> CREATIVE_LAYOUTS = new WeakHashMap<>();
 	private static Method playerPreviewRenderMethod;
 	private static boolean lookedUpPlayerPreviewRenderMethod;
 
@@ -74,79 +76,106 @@ public final class PlayerEntitiesInventoryClient {
 	public static void initialize() {
 		ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
 			if (screen instanceof InventoryScreen inventoryScreen) {
-				ScreenEvents.afterBackground(inventoryScreen).register((currentScreen, graphics, mouseX, mouseY, tickProgress) -> {
-					applyLayout(inventoryScreen);
-					int leftPos = leftPos(inventoryScreen);
-					int topPos = topPos(inventoryScreen);
-					graphics.blit(
-						RenderPipelines.GUI_TEXTURED,
-						SURVIVAL_INVENTORY_TEXTURE,
-						leftPos,
-						topPos,
-						0.0F,
-						0.0F,
-						INVENTORY_WIDTH,
-						INVENTORY_HEIGHT,
-						TEXTURE_SIZE,
-						TEXTURE_SIZE
-					);
-					drawPlayerPreview(inventoryScreen, graphics, mouseX, mouseY);
-					drawEntityPlaceholders(inventoryScreen, graphics);
-					drawRecipeBookButtonIcon(inventoryScreen, graphics, mouseX, mouseY);
-				});
-
-				ScreenMouseEvents.allowMouseClick(inventoryScreen).register((currentScreen, event) -> {
-					applyLayout(inventoryScreen);
-					AbstractWidget recipeButton = findRecipeButton(inventoryScreen);
-					if (recipeButton == null) {
-						return true;
-					}
-					if (!isHovered(recipeButton, (int) event.x(), (int) event.y())) {
-						return true;
-					}
-
-					recipeButton.onClick(event, false);
-					return false;
-				});
+				applyLayout(inventoryScreen);
+				ScreenMouseEvents.allowMouseClick(inventoryScreen).register((currentScreen, mouseX, mouseY, button) ->
+					allowInventoryMouseClick(inventoryScreen, mouseX, mouseY, button)
+				);
 			}
 
 			if (screen instanceof CreativeModeInventoryScreen creativeScreen) {
-				ScreenEvents.afterBackground(creativeScreen).register((currentScreen, graphics, mouseX, mouseY, tickProgress) -> {
-					if (!((CreativeModeInventoryScreenAccessor) creativeScreen).madokuCraft$isInventoryOpen()) {
-						return;
-					}
-
-					applyCreativeLayout(creativeScreen);
-					int leftPos = leftPos(creativeScreen);
-					int topPos = topPos(creativeScreen);
-					graphics.blit(
-						RenderPipelines.GUI_TEXTURED,
-						CREATIVE_INVENTORY_TEXTURE,
-						leftPos,
-						topPos,
-						0.0F,
-						0.0F,
-						INVENTORY_WIDTH,
-						INVENTORY_HEIGHT,
-						TEXTURE_SIZE,
-						TEXTURE_SIZE
-					);
-					drawPlayerPreview(
-						creativeScreen,
-						graphics,
-						mouseX,
-						mouseY,
-						CREATIVE_PLAYER_PREVIEW_LEFT,
-						CREATIVE_PLAYER_PREVIEW_TOP,
-						CREATIVE_PLAYER_PREVIEW_RIGHT,
-						CREATIVE_PLAYER_PREVIEW_BOTTOM,
-						CREATIVE_PLAYER_PREVIEW_SCALE,
-						CREATIVE_PLAYER_PREVIEW_VERTICAL_OFFSET
-					);
-					drawEntityPlaceholders(creativeScreen, graphics);
-				});
+				syncCreativeLayout(creativeScreen);
 			}
 		});
+	}
+
+	public static void renderInventoryBackground(InventoryScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
+		if (screen == null || graphics == null) {
+			return;
+		}
+
+		applyLayout(screen);
+		int leftPos = leftPos(screen);
+		int topPos = topPos(screen);
+		graphics.blit(
+			SURVIVAL_INVENTORY_TEXTURE,
+			leftPos,
+			topPos,
+			0.0F,
+			0.0F,
+			INVENTORY_WIDTH,
+			INVENTORY_HEIGHT,
+			TEXTURE_SIZE,
+			TEXTURE_SIZE
+		);
+		drawPlayerPreview(screen, graphics, mouseX, mouseY);
+		drawEntityPlaceholders(screen, graphics);
+		drawRecipeBookButtonIcon(screen, graphics, mouseX, mouseY);
+	}
+
+	public static void renderCreativeInventoryBackground(
+		CreativeModeInventoryScreen screen,
+		GuiGraphics graphics,
+		int mouseX,
+		int mouseY
+	) {
+		if (screen == null || graphics == null || !((CreativeModeInventoryScreenAccessor) screen).madokuCraft$isInventoryOpen()) {
+			return;
+		}
+
+		int leftPos = leftPos(screen);
+		int topPos = topPos(screen);
+		graphics.blit(
+			CREATIVE_INVENTORY_TEXTURE,
+			leftPos,
+			topPos,
+			0.0F,
+			0.0F,
+			INVENTORY_WIDTH,
+			INVENTORY_HEIGHT,
+			TEXTURE_SIZE,
+			TEXTURE_SIZE
+		);
+		drawPlayerPreview(
+			screen,
+			graphics,
+			mouseX,
+			mouseY,
+			CREATIVE_PLAYER_PREVIEW_LEFT,
+			CREATIVE_PLAYER_PREVIEW_TOP,
+			CREATIVE_PLAYER_PREVIEW_RIGHT,
+			CREATIVE_PLAYER_PREVIEW_BOTTOM,
+			CREATIVE_PLAYER_PREVIEW_SCALE,
+			CREATIVE_PLAYER_PREVIEW_VERTICAL_OFFSET
+		);
+		drawEntityPlaceholders(screen, graphics);
+	}
+
+	public static void syncCreativeLayout(CreativeModeInventoryScreen screen) {
+		if (screen == null) {
+			return;
+		}
+
+		boolean inventoryOpen = ((CreativeModeInventoryScreenAccessor) screen).madokuCraft$isInventoryOpen();
+		if (inventoryOpen) {
+			applyCreativeLayout(screen);
+			return;
+		}
+		rememberCreativeLayout(screen);
+		restoreCreativeLayout(screen);
+	}
+
+	private static boolean allowInventoryMouseClick(InventoryScreen screen, double mouseX, double mouseY, int button) {
+		applyLayout(screen);
+		AbstractWidget recipeButton = findRecipeButton(screen);
+		if (recipeButton == null) {
+			return true;
+		}
+		if (!isHovered(recipeButton, (int) mouseX, (int) mouseY)) {
+			return true;
+		}
+
+		invokeRecipeButton(recipeButton, mouseX, mouseY, button);
+		return false;
 	}
 
 	private static void applyLayout(InventoryScreen screen) {
@@ -168,6 +197,23 @@ public final class PlayerEntitiesInventoryClient {
 		moveCreativeArmorSlots(screen);
 		moveCreativeOffhandSlot(screen);
 		moveCreativePetSlots(screen);
+	}
+
+	private static void rememberCreativeLayout(CreativeModeInventoryScreen screen) {
+		if (screen == null
+			|| ((CreativeModeInventoryScreenAccessor) screen).madokuCraft$isInventoryOpen()
+			|| CREATIVE_LAYOUTS.containsKey(screen)) {
+			return;
+		}
+		CREATIVE_LAYOUTS.put(screen, CreativeLayoutSnapshot.capture(screen));
+	}
+
+	private static void restoreCreativeLayout(CreativeModeInventoryScreen screen) {
+		CreativeLayoutSnapshot snapshot = CREATIVE_LAYOUTS.get(screen);
+		if (screen == null || snapshot == null) {
+			return;
+		}
+		snapshot.restore(screen);
 	}
 
 	private static void moveCreativeArmorSlots(CreativeModeInventoryScreen screen) {
@@ -217,20 +263,30 @@ public final class PlayerEntitiesInventoryClient {
 		recipeButton.visible = false;
 	}
 
-	private static void drawRecipeBookButtonIcon(InventoryScreen screen, Object graphics, int mouseX, int mouseY) {
+	private static void invokeRecipeButton(AbstractWidget recipeButton, double mouseX, double mouseY, int button) {
+		try {
+			Method onPress = recipeButton.getClass().getMethod("onPress");
+			onPress.invoke(recipeButton);
+			return;
+		} catch (ReflectiveOperationException ignored) {
+		}
+
+		recipeButton.mouseClicked(mouseX, mouseY, button);
+	}
+
+	private static void drawRecipeBookButtonIcon(InventoryScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
 		AbstractWidget recipeButton = findRecipeButton(screen);
 		if (recipeButton == null) {
 			return;
 		}
 
-		Identifier texture = isHovered(recipeButton, mouseX, mouseY)
+		ResourceLocation texture = isHovered(recipeButton, mouseX, mouseY)
 			? RECIPE_BUTTON_HIGHLIGHTED_TEXTURE
 			: RECIPE_BUTTON_TEXTURE;
 		int iconX = recipeButton.getX() + (recipeButton.getWidth() - RECIPE_BUTTON_ICON_SIZE) / 2;
 		int iconY = recipeButton.getY() + (recipeButton.getHeight() - RECIPE_BUTTON_ICON_SIZE) / 2;
 
-		((GuiGraphics) graphics).blit(
-			RenderPipelines.GUI_TEXTURED,
+		graphics.blit(
 			texture,
 			iconX,
 			iconY,
@@ -243,8 +299,7 @@ public final class PlayerEntitiesInventoryClient {
 		);
 	}
 
-	private static void drawEntityPlaceholders(AbstractContainerScreen<?> screen, Object graphics) {
-		GuiGraphics guiGraphics = (GuiGraphics) graphics;
+	private static void drawEntityPlaceholders(AbstractContainerScreen<?> screen, GuiGraphics graphics) {
 		for (int slotIndex = PlayerEntitiesSystem.FIRST_SLOT_INDEX;
 			slotIndex < PlayerEntitiesSystem.FIRST_SLOT_INDEX + PlayerEntitiesSystem.SLOT_COUNT;
 			slotIndex++) {
@@ -259,8 +314,7 @@ public final class PlayerEntitiesInventoryClient {
 
 			int iconX = leftPos(screen) + slot.x;
 			int iconY = topPos(screen) + slot.y;
-			guiGraphics.blit(
-				RenderPipelines.GUI_TEXTURED,
+			graphics.blit(
 				ENTITY_SLOT_TEXTURE,
 				iconX,
 				iconY,
@@ -274,7 +328,7 @@ public final class PlayerEntitiesInventoryClient {
 		}
 	}
 
-	private static void drawPlayerPreview(InventoryScreen screen, Object graphics, int mouseX, int mouseY) {
+	private static void drawPlayerPreview(InventoryScreen screen, GuiGraphics graphics, int mouseX, int mouseY) {
 		drawPlayerPreview(
 			screen,
 			graphics,
@@ -291,7 +345,7 @@ public final class PlayerEntitiesInventoryClient {
 
 	private static void drawPlayerPreview(
 		AbstractContainerScreen<?> screen,
-		Object graphics,
+		GuiGraphics graphics,
 		int mouseX,
 		int mouseY,
 		int previewLeft,
@@ -397,5 +451,65 @@ public final class PlayerEntitiesInventoryClient {
 			&& mouseX < widget.getRight()
 			&& mouseY >= widget.getY()
 			&& mouseY < widget.getBottom();
+	}
+
+	private record CreativeLayoutSnapshot(int[] armorXs, int[] armorYs, int offhandX, int offhandY, int[] petXs, int[] petYs) {
+		private static CreativeLayoutSnapshot capture(CreativeModeInventoryScreen screen) {
+			int armorCount = Math.min(CREATIVE_ARMOR_SLOT_XS.length, Math.max(0, screen.getMenu().slots.size() - 5));
+			int[] armorXs = new int[armorCount];
+			int[] armorYs = new int[armorCount];
+			for (int index = 0; index < armorCount; index++) {
+				Slot slot = screen.getMenu().slots.get(5 + index);
+				armorXs[index] = slot.x;
+				armorYs[index] = slot.y;
+			}
+
+			int offhandX = 0;
+			int offhandY = 0;
+			if (OFFHAND_SLOT_INDEX >= 0 && OFFHAND_SLOT_INDEX < screen.getMenu().slots.size()) {
+				Slot offhandSlot = screen.getMenu().slots.get(OFFHAND_SLOT_INDEX);
+				offhandX = offhandSlot.x;
+				offhandY = offhandSlot.y;
+			}
+
+			int petCount = Math.min(PlayerEntitiesSystem.SLOT_COUNT, Math.max(0, screen.getMenu().slots.size() - PlayerEntitiesSystem.FIRST_SLOT_INDEX));
+			int[] petXs = new int[petCount];
+			int[] petYs = new int[petCount];
+			for (int slot = 0; slot < petCount; slot++) {
+				Slot petSlot = screen.getMenu().slots.get(PlayerEntitiesSystem.FIRST_SLOT_INDEX + slot);
+				petXs[slot] = petSlot.x;
+				petYs[slot] = petSlot.y;
+			}
+
+			return new CreativeLayoutSnapshot(armorXs, armorYs, offhandX, offhandY, petXs, petYs);
+		}
+
+		private void restore(CreativeModeInventoryScreen screen) {
+			for (int index = 0; index < armorXs.length; index++) {
+				int slotIndex = 5 + index;
+				if (slotIndex < 0 || slotIndex >= screen.getMenu().slots.size()) {
+					break;
+				}
+				Slot slot = screen.getMenu().slots.get(slotIndex);
+				((SlotAccessor) slot).madokuCraft$setX(armorXs[index]);
+				((SlotAccessor) slot).madokuCraft$setY(armorYs[index]);
+			}
+
+			if (OFFHAND_SLOT_INDEX >= 0 && OFFHAND_SLOT_INDEX < screen.getMenu().slots.size()) {
+				Slot offhandSlot = screen.getMenu().slots.get(OFFHAND_SLOT_INDEX);
+				((SlotAccessor) offhandSlot).madokuCraft$setX(offhandX);
+				((SlotAccessor) offhandSlot).madokuCraft$setY(offhandY);
+			}
+
+			for (int slot = 0; slot < petXs.length; slot++) {
+				int slotIndex = PlayerEntitiesSystem.FIRST_SLOT_INDEX + slot;
+				if (slotIndex < 0 || slotIndex >= screen.getMenu().slots.size()) {
+					break;
+				}
+				Slot petSlot = screen.getMenu().slots.get(slotIndex);
+				((SlotAccessor) petSlot).madokuCraft$setX(petXs[slot]);
+				((SlotAccessor) petSlot).madokuCraft$setY(petYs[slot]);
+			}
+		}
 	}
 }

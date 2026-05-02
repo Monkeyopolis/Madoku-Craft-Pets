@@ -3,14 +3,11 @@ package madoku.craft;
 import madoku.craft.pet.PlayerEntitiesHolder;
 import madoku.craft.pet.PlayerEntitiesInventory;
 import madoku.craft.pet.PlayerEntitiesSystem;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
-import net.minecraft.client.DeltaTracker;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.item.ItemStack;
@@ -19,9 +16,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class PetAbilityHud {
-	private static final Identifier HUD_ID = Identifier.fromNamespaceAndPath("madoku-craft-pets", "pet_ability_hud");
-	private static final Identifier ABILITY_SLOT_TEXTURE =
-		Identifier.fromNamespaceAndPath("madoku-craft-pets", "textures/gui/interface/ability_slot.png");
+	private static final ResourceLocation ABILITY_SLOT_TEXTURE =
+		ResourceLocation.fromNamespaceAndPath("madoku-craft-pets", "textures/gui/interface/ability_slot.png");
 	private static final int ABILITY_SLOT_TEXTURE_SIZE = 16;
 	private static final int HOTBAR_HALF_WIDTH = 91;
 	private static final int HOTBAR_SLOT_ROW_HEIGHT = 22;
@@ -47,10 +43,10 @@ public final class PetAbilityHud {
 			return;
 		}
 		initialized = true;
-		HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, HUD_ID, PetAbilityHud::render);
+		HudRenderCallback.EVENT.register((context, tickDelta) -> render(context));
 	}
 
-	private static void render(GuiGraphics context, DeltaTracker tickCounter) {
+	private static void render(GuiGraphics context) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
 		if (player == null || client.level == null || client.options.hideGui || player.isSpectator() || !PlayerEntitiesSystem.isEnabled()) {
@@ -76,7 +72,6 @@ public final class PetAbilityHud {
 			int slot = visibleSlots.get(index);
 			int slotX = slotXs[index];
 			context.blit(
-				RenderPipelines.GUI_TEXTURED,
 				ABILITY_SLOT_TEXTURE,
 				slotX,
 				slotY,
@@ -113,11 +108,11 @@ public final class PetAbilityHud {
 	}
 
 	private static void renderScaledAbilityItem(GuiGraphics context, ItemStack stack, int x, int y) {
-		context.pose().pushMatrix();
-		context.pose().translate(x, y);
-		context.pose().scale(ABILITY_ITEM_SCALE, ABILITY_ITEM_SCALE);
+		context.pose().pushPose();
+		context.pose().translate(x, y, 0.0F);
+		context.pose().scale(ABILITY_ITEM_SCALE, ABILITY_ITEM_SCALE, 1.0F);
 		context.renderItem(stack, 0, 0);
-		context.pose().popMatrix();
+		context.pose().popPose();
 	}
 
 	private static void renderAbilityCooldownOverlay(
@@ -148,7 +143,7 @@ public final class PetAbilityHud {
 		float cooldownPercent = Math.min(1.0F, remainingTicks / (float) totalCooldownTicks);
 		int overlayTop = itemY + Mth.floor(ABILITY_ITEM_RENDER_SIZE * (1.0F - cooldownPercent));
 		int overlayBottom = overlayTop + Mth.ceil(ABILITY_ITEM_RENDER_SIZE * cooldownPercent);
-		context.fill(RenderPipelines.GUI, itemX, overlayTop, itemX + ABILITY_ITEM_RENDER_SIZE, overlayBottom, ABILITY_COOLDOWN_OVERLAY_COLOR);
+		context.fill(itemX, overlayTop, itemX + ABILITY_ITEM_RENDER_SIZE, overlayBottom, ABILITY_COOLDOWN_OVERLAY_COLOR);
 		renderAbilityCooldownLabel(context, client, slotX, slotY, remainingTicks);
 	}
 
@@ -165,8 +160,8 @@ public final class PetAbilityHud {
 		float scaledTextY =
 			(slotY - ABILITY_COOLDOWN_TEXT_Y_SPACING - (client.font.lineHeight * ABILITY_COOLDOWN_TEXT_SCALE))
 				/ ABILITY_COOLDOWN_TEXT_SCALE;
-		context.pose().pushMatrix();
-		context.pose().scale(ABILITY_COOLDOWN_TEXT_SCALE, ABILITY_COOLDOWN_TEXT_SCALE);
+		context.pose().pushPose();
+		context.pose().scale(ABILITY_COOLDOWN_TEXT_SCALE, ABILITY_COOLDOWN_TEXT_SCALE, 1.0F);
 		context.drawString(
 			client.font,
 			cooldownText,
@@ -175,7 +170,7 @@ public final class PetAbilityHud {
 			ABILITY_COOLDOWN_TEXT_COLOR,
 			true
 		);
-		context.pose().popMatrix();
+		context.pose().popPose();
 	}
 
 	private static int[] computeAbilitySlotXs(GuiGraphics context, LocalPlayer player, int slotCount) {

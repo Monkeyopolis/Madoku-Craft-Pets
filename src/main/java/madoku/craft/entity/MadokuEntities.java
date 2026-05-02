@@ -11,14 +11,13 @@ import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRe
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.DifficultyInstance;
-import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.MobCategory;
@@ -33,8 +32,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class MadokuEntities {
-	public static final Identifier HAG_ID = Identifier.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "hag");
-	public static final Identifier HAG_SPAWN_EGG_ID = Identifier.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "hag_spawn_egg");
+	public static final ResourceLocation HAG_ID = ResourceLocation.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "hag");
+	public static final ResourceLocation HAG_SPAWN_EGG_ID = ResourceLocation.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "hag_spawn_egg");
 	private static final String ENTITY_DATA_FOLDER_NAME = "madoku-craft-pets-entities";
 	private static final String ENTITY_DATA_FILE_NAME = "madoku-pets-entities";
 	private static final String DATA_NEXT_HAG_SPAWN_DAY = "next_hag_spawn_day";
@@ -59,16 +58,16 @@ public final class MadokuEntities {
 			.sized(0.6F, 1.95F)
 			.eyeHeight(1.62F)
 			.clientTrackingRange(8)
-			.notInPeaceful()
-			.build(ResourceKey.create(Registries.ENTITY_TYPE, HAG_ID))
+			.build(null)
 	);
 	public static final Item HAG_SPAWN_EGG = Registry.register(
 		BuiltInRegistries.ITEM,
 		HAG_SPAWN_EGG_ID,
 		new SpawnEggItem(
+			HAG,
+			0x4A3F5E,
+			0xB5C86A,
 			new Item.Properties()
-				.spawnEgg(HAG)
-				.setId(ResourceKey.create(Registries.ITEM, HAG_SPAWN_EGG_ID))
 		)
 	);
 
@@ -156,18 +155,18 @@ public final class MadokuEntities {
 	private static boolean isSwampHutSpawn(ServerLevel level, Witch witch) {
 		StructureStart structureStart = level.structureManager().getStructureWithPieceAt(
 			witch.blockPosition(),
-			holder -> holder.unwrapKey().map(ResourceKey::identifier).filter(identifier -> "swamp_hut".equals(identifier.getPath())).isPresent()
+			holder -> holder.unwrapKey().map(ResourceKey::location).filter(identifier -> "swamp_hut".equals(identifier.getPath())).isPresent()
 		);
 		return structureStart != null && structureStart != StructureStart.INVALID_START && structureStart.isValid() && !witch.hasActiveRaid();
 	}
 
 	private static void replaceWitchWithHag(ServerLevel level, Witch witch) {
-		Hag hag = HAG.create(level, EntitySpawnReason.STRUCTURE);
+		Hag hag = HAG.create(level);
 		if (hag == null) {
 			return;
 		}
 
-		hag.snapTo(witch.getX(), witch.getY(), witch.getZ(), witch.getYRot(), witch.getXRot());
+		hag.moveTo(witch.getX(), witch.getY(), witch.getZ(), witch.getYRot(), witch.getXRot());
 		hag.setYBodyRot(witch.yBodyRot);
 		hag.yHeadRot = witch.yHeadRot;
 		hag.yHeadRotO = witch.yHeadRotO;
@@ -177,7 +176,7 @@ public final class MadokuEntities {
 		}
 
 		DifficultyInstance difficulty = level.getCurrentDifficultyAt(witch.blockPosition());
-		hag.finalizeSpawn(level, difficulty, EntitySpawnReason.STRUCTURE, null);
+		hag.finalizeSpawn(level, difficulty, MobSpawnType.STRUCTURE, null);
 		hag.setHealth(Math.min(witch.getHealth(), hag.getMaxHealth()));
 		if (witch.hasCustomName()) {
 			hag.setCustomName(witch.getCustomName());
@@ -237,12 +236,12 @@ public final class MadokuEntities {
 				continue;
 			}
 
-			Hag hag = HAG.create(level, EntitySpawnReason.NATURAL);
+			Hag hag = HAG.create(level);
 			if (hag == null) {
 				return null;
 			}
-			hag.snapTo(spawnPos.getX() + 0.5D, spawnPos.getY(), spawnPos.getZ() + 0.5D, level.getRandom().nextFloat() * 360.0F, 0.0F);
-			hag.finalizeSpawn(level, level.getCurrentDifficultyAt(spawnPos), EntitySpawnReason.NATURAL, null);
+			hag.moveTo(spawnPos.getX() + 0.5D, spawnPos.getY(), spawnPos.getZ() + 0.5D, level.getRandom().nextFloat() * 360.0F, 0.0F);
+			hag.finalizeSpawn(level, level.getCurrentDifficultyAt(spawnPos), MobSpawnType.NATURAL, null);
 			tagAsWanderingHag(hag, currentAbsoluteDayTime(level));
 			if (!level.noCollision(hag) || !hag.checkSpawnObstruction(level)) {
 				hag.discard();
@@ -259,10 +258,10 @@ public final class MadokuEntities {
 	private static net.minecraft.world.phys.AABB hagSearchBounds(ServerLevel level) {
 		return level == null ? new net.minecraft.world.phys.AABB(0, 0, 0, 0, 0, 0) : new net.minecraft.world.phys.AABB(
 			level.getWorldBorder().getMinX(),
-			level.getMinY(),
+			level.getMinBuildHeight(),
 			level.getWorldBorder().getMinZ(),
 			level.getWorldBorder().getMaxX(),
-			level.getMaxY(),
+			level.getMaxBuildHeight(),
 			level.getWorldBorder().getMaxZ()
 		);
 	}

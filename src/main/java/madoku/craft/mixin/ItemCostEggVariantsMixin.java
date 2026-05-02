@@ -13,9 +13,7 @@ public abstract class ItemCostEggVariantsMixin {
 	@Inject(method = "test", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$acceptAlternateEggs(ItemStack stack, CallbackInfoReturnable<Boolean> cir) {
 		ItemCost cost = (ItemCost) (Object) this;
-		if (cost.itemStack().is(Items.EGG)
-			&& (stack.is(Items.BLUE_EGG) || stack.is(Items.BROWN_EGG))
-			&& cost.components().test(stack)) {
+		if (cost.itemStack().is(Items.EGG) && stack.is(Items.EGG) && cost.components().test(stack)) {
 			cir.setReturnValue(true);
 		}
 	}

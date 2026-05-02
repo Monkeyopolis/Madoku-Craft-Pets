@@ -6,7 +6,9 @@
 		"AbstractContainerScreenAccessor",
 		"CreativeModeInventoryScreenAccessor",
 		"CreativeModeInventoryScreenPetSlotMixin",
+		"CreativeModeInventoryScreenRenderBgMixin",
 		"CreativeModeSlotWrapperAccessor",
+		"InventoryScreenRenderBgMixin",
 		"MerchantScreenAccessor",
 		"SlotAccessor"
 	],

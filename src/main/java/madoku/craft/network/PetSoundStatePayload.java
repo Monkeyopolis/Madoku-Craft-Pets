@@ -5,11 +5,11 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 public record PetSoundStatePayload(String petUuid, String itemId) implements CustomPacketPayload {
 	public static final CustomPacketPayload.Type<PetSoundStatePayload> TYPE =
-		new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "pet_sound_state"));
+		new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "pet_sound_state"));
 	public static final StreamCodec<RegistryFriendlyByteBuf, PetSoundStatePayload> CODEC =
 		StreamCodec.composite(
 			ByteBufCodecs.STRING_UTF8,

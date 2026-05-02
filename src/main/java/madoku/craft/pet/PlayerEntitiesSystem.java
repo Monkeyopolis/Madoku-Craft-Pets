@@ -20,7 +20,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -31,7 +31,6 @@ import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -40,15 +39,15 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
-import net.minecraft.world.entity.projectile.arrow.Arrow;
+import net.minecraft.world.entity.projectile.AbstractArrow;
+import net.minecraft.world.entity.projectile.Arrow;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.item.component.ItemLore;
-import net.minecraft.world.level.gamerules.GameRules;
+import net.minecraft.world.level.GameRules;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
@@ -117,12 +116,12 @@ public final class PlayerEntitiesSystem {
 	private static final int BAT_SCAN_MIN_BATS_FOR_ENHANCED_RADIUS = 3;
 	private static final long BAT_SCAN_GLOWING_DURATION_TICKS = 90L * 20L;
 	private static final long BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT = 30L * 20L;
-	private static final Identifier PLAYER_DAMAGE_ABILITY_MODIFIER_ID =
-		Identifier.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "madoku_pets_player_damage_bonus");
-	private static final Identifier PLAYER_MAX_HEALTH_ABILITY_MODIFIER_ID =
-		Identifier.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "madoku_pets_player_max_health_bonus");
-	private static final Identifier PLAYER_ARMOR_ABILITY_MODIFIER_ID =
-		Identifier.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "madoku_pets_player_armor_bonus");
+	private static final ResourceLocation PLAYER_DAMAGE_ABILITY_MODIFIER_ID =
+		ResourceLocation.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "madoku_pets_player_damage_bonus");
+	private static final ResourceLocation PLAYER_MAX_HEALTH_ABILITY_MODIFIER_ID =
+		ResourceLocation.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "madoku_pets_player_max_health_bonus");
+	private static final ResourceLocation PLAYER_ARMOR_ABILITY_MODIFIER_ID =
+		ResourceLocation.fromNamespaceAndPath(Madokucraftpets.MOD_ID, "madoku_pets_player_armor_bonus");
 	private static final String FIELD_SLOT = "slot";
 	private static final String FIELD_TARGET_UUID = "target_uuid";
 	private static final String FIELD_SPAWN_X = "spawn_x";
@@ -158,7 +157,7 @@ public final class PlayerEntitiesSystem {
 			}
 
 			removeAllPets(player.level().getServer(), player.getUUID());
-			if (player.level().getGameRules().get(GameRules.KEEP_INVENTORY) || player.isSpectator()) {
+			if (player.level().getGameRules().getBoolean(GameRules.RULE_KEEPINVENTORY) || player.isSpectator()) {
 				return;
 			}
 
@@ -747,7 +746,7 @@ public final class PlayerEntitiesSystem {
 		if (stack == null || stack.isEmpty()) {
 			return "empty";
 		}
-		Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+		ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
 		return itemId == null ? "<unregistered>" : itemId.toString();
 	}
 
@@ -755,7 +754,7 @@ public final class PlayerEntitiesSystem {
 		if (entityType == null) {
 			return "null";
 		}
-		Identifier typeId = BuiltInRegistries.ENTITY_TYPE.getKey(entityType);
+		ResourceLocation typeId = BuiltInRegistries.ENTITY_TYPE.getKey(entityType);
 		return typeId == null ? "<unregistered>" : typeId.toString();
 	}
 
@@ -1380,7 +1379,7 @@ public final class PlayerEntitiesSystem {
 			.field("entity_type", entityTypeId(entityType))
 			.log();
 
-		Entity entity = entityType.create(level, EntitySpawnReason.EVENT);
+		Entity entity = entityType.create(level);
 		if (!(entity instanceof Mob pet)) {
 			debugPlayerEvent("pet.spawn_failed", owner)
 				.field("slot", slot)
@@ -1391,7 +1390,7 @@ public final class PlayerEntitiesSystem {
 		}
 
 		Vec3 desiredPosition = PetMovementController.resolveDesiredPosition(owner, slot, pet);
-		pet.snapTo(desiredPosition.x, desiredPosition.y, desiredPosition.z, owner.getYRot(), 0.0F);
+		pet.moveTo(desiredPosition.x, desiredPosition.y, desiredPosition.z, owner.getYRot(), 0.0F);
 		preparePet(pet);
 		configurePet(pet, rule);
 		tagManagedPet(pet, owner.getUUID());
@@ -1893,18 +1892,18 @@ public final class PlayerEntitiesSystem {
 
 		target.setDeltaMovement(Vec3.ZERO);
 		if (damage > 0.0F) {
-			target.hurtServer(level, owner.damageSources().generic(), damage);
+			target.hurt(owner.damageSources().generic(), damage);
 			target.setDeltaMovement(Vec3.ZERO);
 		}
 		if (effectDurationTicks > 0) {
-			MobEffectInstance existingSlow = target.getEffect(MobEffects.SLOWNESS);
+			MobEffectInstance existingSlow = target.getEffect(MobEffects.MOVEMENT_SLOWDOWN);
 			int stackedDurationTicks = effectDurationTicks;
 			int amplifier = WEB_PROJECTILE_SLOW_AMPLIFIER;
 			if (existingSlow != null) {
 				stackedDurationTicks += Math.max(0, existingSlow.getDuration());
 				amplifier = Math.max(amplifier, existingSlow.getAmplifier());
 			}
-			target.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, stackedDurationTicks, amplifier), owner);
+			target.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, stackedDurationTicks, amplifier), owner);
 		}
 		if (target instanceof Mob mob) {
 			mob.getNavigation().stop();
@@ -1933,7 +1932,7 @@ public final class PlayerEntitiesSystem {
 				continue;
 			}
 			resetDamageImmunity(mob);
-			mob.hurtServer(level, owner.damageSources().generic(), damage);
+			mob.hurt(owner.damageSources().generic(), damage);
 			Vec3 knockback = mob.position().subtract(position);
 			if (knockback.lengthSqr() > 1.0E-6D) {
 				double strength = Math.max(0.0D, 0.35D * (1.0D - (distance / radius)));
@@ -2318,7 +2317,7 @@ public final class PlayerEntitiesSystem {
 			return null;
 		}
 
-		Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+		ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
 		if (itemId == null) {
 			return null;
 		}
@@ -2480,8 +2479,8 @@ public final class PlayerEntitiesSystem {
 	}
 
 	private static Item resolveItem(String itemId) {
-		Identifier identifier = Identifier.tryParse(itemId == null ? "" : itemId.trim());
-		return identifier == null ? null : BuiltInRegistries.ITEM.getValue(identifier);
+		ResourceLocation identifier = ResourceLocation.tryParse(itemId == null ? "" : itemId.trim());
+		return identifier == null ? null : BuiltInRegistries.ITEM.get(identifier);
 	}
 
 	private static String defaultAbilityForItem(String itemId) {

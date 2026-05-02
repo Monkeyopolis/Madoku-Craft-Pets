@@ -6,7 +6,6 @@ public final class MadokuEntitiesClient {
 	private MadokuEntitiesClient() {
 	}
 
-	@SuppressWarnings("deprecation")
 	public static void initialize() {
 		EntityRendererRegistry.register(MadokuEntities.HAG, HagRenderer::new);
 	}

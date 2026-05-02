@@ -20,7 +20,7 @@ public abstract class BatPetBehaviorMixin {
 	private static final Map<UUID, BlockPos> MANAGED_BAT_TARGETS = new ConcurrentHashMap<>();
 
 	@Inject(method = "customServerAiStep", at = @At("HEAD"))
-	private void madokuCraft$keepManagedBatActive(ServerLevel level, CallbackInfo ci) {
+	private void madokuCraft$keepManagedBatActive(CallbackInfo ci) {
 		Bat self = (Bat) (Object) this;
 		if (!PlayerEntitiesSystem.isManagedPet(self)) {
 			MANAGED_BAT_TARGETS.remove(self.getUUID());
@@ -37,9 +37,12 @@ public abstract class BatPetBehaviorMixin {
 			target = "Lnet/minecraft/world/entity/ambient/Bat;getDeltaMovement()Lnet/minecraft/world/phys/Vec3;"
 		)
 	)
-	private void madokuCraft$applyManagedBatTarget(ServerLevel level, CallbackInfo ci) {
+	private void madokuCraft$applyManagedBatTarget(CallbackInfo ci) {
 		Bat self = (Bat) (Object) this;
 		if (!PlayerEntitiesSystem.isManagedPet(self)) {
+			return;
+		}
+		if (!(self.level() instanceof ServerLevel level)) {
 			return;
 		}
 
@@ -50,7 +53,7 @@ public abstract class BatPetBehaviorMixin {
 				? BlockPos.containing(self.position())
 				: new BlockPos(
 					Mth.floor(target.x),
-					Math.max(level.getMinY(), Mth.floor(target.y + 0.4D)),
+					Math.max(level.getMinBuildHeight(), Mth.floor(target.y + 0.4D)),
 					Mth.floor(target.z)
 				);
 			MANAGED_BAT_TARGETS.put(self.getUUID(), targetPos);

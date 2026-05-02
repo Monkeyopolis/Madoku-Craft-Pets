@@ -7,8 +7,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.MerchantScreen;
-import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -17,9 +16,9 @@ import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 
 public final class MerchantEggVariantsClient {
-	private static final Identifier DISCOUNT_STRIKETHROUGH_SPRITE =
-		Identifier.withDefaultNamespace("container/villager/discount_strikethrough");
-	private static final Item[] EGG_VARIANTS = {Items.EGG, Items.BLUE_EGG, Items.BROWN_EGG};
+	private static final ResourceLocation DISCOUNT_STRIKETHROUGH_SPRITE =
+		ResourceLocation.withDefaultNamespace("container/villager/discount_strikethrough");
+	private static final Item[] EGG_VARIANTS = {Items.EGG};
 	private static final int OFFER_ROWS = 7;
 	private static final int COST_X = 10;
 	private static final int FIRST_ROW_Y = 19;
@@ -80,7 +79,7 @@ public final class MerchantEggVariantsClient {
 
 		graphics.renderItemDecorations(font, displayBaseCost, x, y, baseCost.getCount() == 1 ? "1" : null);
 		graphics.renderItemDecorations(font, displayRealCost, x + 14, y, realCost.getCount() == 1 ? "1" : null);
-		graphics.blitSprite(RenderPipelines.GUI, DISCOUNT_STRIKETHROUGH_SPRITE, x + 7, y + 12, 9, 2);
+		graphics.blitSprite(DISCOUNT_STRIKETHROUGH_SPRITE, x + 7, y + 12, 9, 2);
 	}
 
 	private static ItemStack displayStack(ItemStack original) {
