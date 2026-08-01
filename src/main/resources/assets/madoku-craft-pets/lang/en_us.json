@@ -1,4 +1,14 @@
 {
   "entity.madoku-craft-pets.hag": "Hag",
-  "item.madoku-craft-pets.hag_spawn_egg": "Hag Spawn Egg"
+  "item.madoku-craft-pets.hag_spawn_egg": "Hag Spawn Egg",
+  "item.madoku-craft-pets.bat-pet": "Bat Pet",
+  "item.madoku-craft-pets.bee-pet": "Bee Pet",
+  "item.madoku-craft-pets.chicken-pet": "Chicken Pet",
+  "item.madoku-craft-pets.cow-pet": "Cow Pet",
+  "item.madoku-craft-pets.creeper-pet": "Creeper Pet",
+  "item.madoku-craft-pets.pig-pet": "Pig Pet",
+  "item.madoku-craft-pets.sheep-pet": "Sheep Pet",
+  "item.madoku-craft-pets.skeleton-pet": "Skeleton Pet",
+  "item.madoku-craft-pets.spider-pet": "Spider Pet",
+  "item.madoku-craft-pets.zombie-pet": "Zombie Pet"
 }

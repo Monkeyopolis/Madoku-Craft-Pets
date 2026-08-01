@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.pet.PetAbilitiesManager;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -14,8 +14,9 @@ public abstract class LivingEntityPetAbilityDamageMixin {
 	private void madokuCraftPets$applyPetDamageAbilities(DamageSource source, float amount, CallbackInfoReturnable<Float> cir) {
 		LivingEntity entity = (LivingEntity) (Object) this;
 		float adjusted = cir.getReturnValueF();
-		adjusted = PlayerEntitiesSystem.applyFallDamageAbilityReduction(entity, source, adjusted);
-		adjusted = PlayerEntitiesSystem.applyIncomingDamageBlockAbility(entity, source, adjusted);
+		adjusted = PetAbilitiesManager.applyFallDamage(entity, source, adjusted);
+		adjusted = PetAbilitiesManager.applyDamageBlock(entity, source, adjusted);
+		adjusted = PetAbilitiesManager.applyMobScanDamage(entity, adjusted);
 		cir.setReturnValue(adjusted);
 	}
 }

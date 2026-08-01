@@ -1,30 +1,31 @@
-## Madoku Craft: Pets
+## Overview:
 
-Madoku Craft: Pets is a configurable Pet system.
-This system allows you to Equip spawn eggs into the player Inventory.
-You can customize most of these features in the CONFIG files.
+Madoku Craft: Pets is a configurable pet system.
+This system allows you to equip pet items in your inventory.
+Each pet has their own abilities.
+You can customize most of these features in the config files.
 
 ## Dependencies:
 
 - Fabric API
 - Madoku Craft API
 
-## Implementation:
+## Features:
 
 Pets:
 
-- Equipping an spawn egg allows you to have a Pet.
-- Each Pet has an Ability that helps you.
-- These Pets follow you around and teleport with you.
+- Equipping a pet item allows you to have a mini pet.
+- Each pet has an Ability that helps you.
+- These pets follow you around and teleport with you.
 
 Hag:
 
-- A Hag is a new Entity that spawns in Witch Huts.
-- Hags also spawn near the player, similar to Wandering Traders.
-- You can buy spawn eggs from Hags.
-- Hags are passive mobs unless attacked.
+- A Hag is a new mob entity that spawns in witch huts.
+- Hags also spawns near a player, similar to wandering traders.
+- You can buy pet items from the Hag.
+- Hags are neutral mobs, they only become hostile when attacked.
 
 Inventory:
 
-- The player's inventory was modified to accept spawn eggs in a designated area.
+- The player's inventory was modified to accept pet items in a designated area.
 - The UI was adjusted to fit the new slots.

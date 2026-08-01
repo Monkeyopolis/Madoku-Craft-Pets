@@ -1,9 +1,9 @@
 package madoku.craft.pets;
 
 import madoku.craft.entity.MadokuEntities;
-import madoku.craft.network.PetAbilityHudSync;
-import madoku.craft.network.PetSoundStateSync;
-import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.api.MadokuAPIManager;
+import madoku.craft.pet.MadokuPetManager;
+import madoku.craft.pet.PetPayloadManager;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -21,30 +21,34 @@ public class Madokucraftpets implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
+		PetPayloadManager.initialize();
 		MadokuEntities.initialize();
-		PlayerEntitiesSystem.initialize();
-		PetAbilityHudSync.initialize();
-		PetSoundStateSync.initialize();
+		MadokuPetManager.initialize();
 
 		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
 			MadokuEntities.reset();
-			PlayerEntitiesSystem.reset();
+			MadokuPetManager.reset();
 			MadokuEntities.loadPersistedData(server);
-			PlayerEntitiesSystem.loadPersistedData(server);
+			MadokuPetManager.loadPersistedData(server);
+			MadokuEntities.onServerStarted(server);
+			MadokuPetManager.onServerStarted(server);
+		});
+
+		ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+			MadokuEntities.savePersistedData(server);
+			MadokuPetManager.savePersistedData(server);
+			MadokuAPIManager.savePersistedData(server);
 		});
 
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
-			MadokuEntities.savePersistedData(server);
-			PlayerEntitiesSystem.savePersistedData(server);
 			MadokuEntities.reset();
-			PlayerEntitiesSystem.reset();
+			MadokuPetManager.reset();
 		});
 
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			MadokuEntities.autosavePersistedData(server);
-			PlayerEntitiesSystem.autosavePersistedData(server);
-			MadokuEntities.onServerTick(server);
-			PlayerEntitiesSystem.onServerTick(server);
+			MadokuPetManager.autosavePersistedData(server);
+			MadokuAPIManager.autosavePersistedData(server);
 		});
 	}
 }

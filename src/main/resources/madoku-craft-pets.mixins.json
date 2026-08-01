@@ -3,17 +3,17 @@
 	"package": "madoku.craft.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
-		"BatPetBehaviorMixin",
-		"BatTargetAccessor",
-		"CreativeModeTabsSpawnEggsMixin",
 		"EntityPetBehaviorMixin",
-		"InventoryMenuPlayerEntitiesSlotsMixin",
+		"InventoryMenuPetSlotsMixin",
 		"ItemCostEggVariantsMixin",
+		"ItemStackPetLoreMixin",
 		"LivingEntityPetAbilityDamageMixin",
 		"LivingEntityPetBehaviorMixin",
-		"MobPetSoundMixin",
-		"PlayerEntitiesInventoryMixin",
-		"ServerGamePacketListenerCreativePetSlotMixin"
+		"MobWebStunMixin",
+		"PetInventoryMixin",
+		"ServerEntityPetUpdateIntervalMixin",
+		"ServerGamePacketListenerCreativePetSlotMixin",
+		"ServerGamePacketListenerPetLeftClickMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

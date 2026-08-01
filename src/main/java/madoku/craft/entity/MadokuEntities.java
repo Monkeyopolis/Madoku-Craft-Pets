@@ -2,9 +2,11 @@ package madoku.craft.entity;
 
 import com.google.gson.JsonObject;
 import madoku.craft.pets.Madokucraftpets;
-import madoku.craft.clock.MadokuTicks;
-import madoku.craft.data.MadokuData;
-import madoku.craft.time.MadokuTime;
+import madoku.craft.api.time.MadokuTimeManager;
+import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.scheduler.MadokuSchedulerManager;
+import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.minecraft.core.BlockPos;
@@ -23,6 +25,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.monster.Witch;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
@@ -37,12 +40,14 @@ public final class MadokuEntities {
 	private static final String ENTITY_DATA_FILE_NAME = "madoku-pets-entities";
 	private static final String DATA_NEXT_HAG_SPAWN_DAY = "next_hag_spawn_day";
 	private static final String DATA_LAST_HAG_CHECK_DAY = "last_hag_check_day";
-	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
+	private static final String TASK_TYPE_ENTITY_RUNTIME_TICK = "entity_runtime_tick";
+	private static final String ENTITY_RUNTIME_SCHEDULER_KEY = "entity_runtime_tick";
+	private static final long ENTITY_RUNTIME_TICK_DELAY = 1L;
 	private static final long DAYS_PER_WEEK = 7L;
 	private static final long MIN_HAG_SPAWN_WEEKS = 1L;
-	private static final long MAX_HAG_SPAWN_WEEKS = 2L;
-	private static final int MIN_HAG_SPAWN_DISTANCE = 24;
-	private static final int MAX_HAG_SPAWN_DISTANCE = 48;
+	private static final long MAX_HAG_SPAWN_WEEKS = 1L;
+	private static final int MIN_HAG_SPAWN_DISTANCE = 12;
+	private static final int MAX_HAG_SPAWN_DISTANCE = 12;
 	private static final int HAG_SPAWN_ATTEMPTS_PER_PLAYER = 8;
 	private static final String WANDERING_HAG_TAG = "madoku-craft-pets.hag.wandering";
 	private static final String WANDERING_HAG_DESPAWN_TIME_PREFIX = "madoku-craft-pets.hag.despawn_time:";
@@ -50,6 +55,8 @@ public final class MadokuEntities {
 	private static long nextWanderingHagSpawnDay = -1L;
 	private static long lastProcessedWanderingHagDay = Long.MIN_VALUE;
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
+	private static volatile String schedulerId = "";
+	private static volatile boolean tickQueued;
 	public static final EntityType<Hag> HAG = Registry.register(
 		BuiltInRegistries.ENTITY_TYPE,
 		HAG_ID,
@@ -75,8 +82,14 @@ public final class MadokuEntities {
 
 	public static void initialize() {
 		FabricDefaultAttributeRegistry.register(HAG, Witch.createAttributes());
+		CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.SPAWN_EGGS).register(output ->
+			output.accept(HAG_SPAWN_EGG)
+		);
+		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_ENTITY_RUNTIME_TICK, MadokuEntities::runRuntimeTickTask);
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
-			if (!(entity instanceof Witch witch) || witch.getType() != EntityType.WITCH || !(world instanceof ServerLevel serverLevel)) {
+			if (!(entity instanceof Witch witch)
+				|| witch.getType() != BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.fromNamespaceAndPath("minecraft", "witch"))
+				|| !(world instanceof ServerLevel serverLevel)) {
 				return;
 			}
 			if (!isSwampHutSpawn(serverLevel, witch)) {
@@ -91,6 +104,12 @@ public final class MadokuEntities {
 		nextWanderingHagSpawnDay = -1L;
 		lastProcessedWanderingHagDay = Long.MIN_VALUE;
 		lastAutosaveBucket = Long.MIN_VALUE;
+		schedulerId = "";
+		tickQueued = false;
+	}
+
+	public static void onServerStarted(MinecraftServer server) {
+		ensureQueued(server, ENTITY_RUNTIME_TICK_DELAY);
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -98,22 +117,23 @@ public final class MadokuEntities {
 			return;
 		}
 		JsonObject defaults = createDefaultData();
-		MadokuData.createWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME, defaults);
-		JsonObject data = MadokuData.loadWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME);
+		JsonObject data = MadokuJSONManager.loadWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME, defaults);
 		nextWanderingHagSpawnDay = Math.max(-1L, getLong(data, DATA_NEXT_HAG_SPAWN_DAY, -1L));
 		lastProcessedWanderingHagDay = getLong(data, DATA_LAST_HAG_CHECK_DAY, Long.MIN_VALUE);
 		long currentDay = currentAbsoluteDay(server);
 		if (nextWanderingHagSpawnDay < 0L) {
 			nextWanderingHagSpawnDay = currentDay + randomSpawnIntervalDays(server);
 		}
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME);
+		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
 		if (server == null) {
 			return;
 		}
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME);
+		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -124,10 +144,10 @@ public final class MadokuEntities {
 		if (server == null) {
 			return;
 		}
-		MadokuData.saveWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME, toPersistedData());
+		MadokuJSONManager.saveWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME, toPersistedData());
 	}
 
-	public static void onServerTick(MinecraftServer server) {
+	private static void onServerTick(MinecraftServer server) {
 		if (server == null || server.overworld() == null) {
 			return;
 		}
@@ -150,6 +170,67 @@ public final class MadokuEntities {
 		}
 	}
 
+	private static void runRuntimeTickTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
+		tickQueued = false;
+		if (server == null || context == null) {
+			return;
+		}
+
+		schedulerId = context.getSchedulerId();
+		onServerTick(server);
+		ensureQueued(server, ENTITY_RUNTIME_TICK_DELAY);
+	}
+
+	private static void ensureQueued(MinecraftServer server, long delayTicks) {
+		if (server == null || tickQueued) {
+			return;
+		}
+
+		String currentSchedulerId = ensureScheduler();
+		if (MadokuSchedulerManager.hasQueuedTask(currentSchedulerId, TASK_TYPE_ENTITY_RUNTIME_TICK)) {
+			tickQueued = true;
+			return;
+		}
+		if (enqueue(currentSchedulerId, delayTicks)) {
+			tickQueued = true;
+			return;
+		}
+
+		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
+			MadokuSchedulerManager.SchedulerBinding.global(ENTITY_RUNTIME_SCHEDULER_KEY)
+		);
+		if (enqueue(schedulerId, delayTicks)) {
+			tickQueued = true;
+			return;
+		}
+	}
+
+	private static String ensureScheduler() {
+		String current = schedulerId;
+		if (current != null && !current.isBlank()) {
+			return current;
+		}
+		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
+			MadokuSchedulerManager.SchedulerBinding.global(ENTITY_RUNTIME_SCHEDULER_KEY)
+		);
+		return schedulerId;
+	}
+
+	private static boolean enqueue(String targetSchedulerId, long delayTicks) {
+		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
+			return false;
+		}
+		MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
+			targetSchedulerId,
+			Math.max(0L, delayTicks),
+			TASK_TYPE_ENTITY_RUNTIME_TICK,
+			new JsonObject(),
+			MadokuSchedulerManager.TickDomain.GAMEPLAY
+		);
+		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
+			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
+	}
+
 	private static boolean isSwampHutSpawn(ServerLevel level, Witch witch) {
 		StructureStart structureStart = level.structureManager().getStructureWithPieceAt(
 			witch.blockPosition(),
@@ -169,6 +250,7 @@ public final class MadokuEntities {
 		hag.yHeadRot = witch.yHeadRot;
 		hag.yHeadRotO = witch.yHeadRotO;
 		hag.setHealth(Math.min(witch.getHealth(), hag.getMaxHealth()));
+
 		for (EquipmentSlot slot : EquipmentSlot.values()) {
 			hag.setItemSlot(slot, witch.getItemBySlot(slot).copy());
 		}
@@ -328,8 +410,8 @@ public final class MadokuEntities {
 		if (level == null) {
 			return 0L;
 		}
-		if (MadokuTime.isEnabled()) {
-			return Math.max(0L, MadokuTime.getDay(MadokuTime.getCurrentAbsoluteDayTime(level)));
+		if (MadokuTimeManager.isEnabled()) {
+			return Math.max(0L, MadokuTimeManager.getDay(MadokuTimeManager.getCurrentAbsoluteDayTime(level)));
 		}
 		return Math.max(0L, Math.floorDiv(level.getOverworldClockTime(), 24000L));
 	}
@@ -338,8 +420,8 @@ public final class MadokuEntities {
 		if (level == null) {
 			return 0L;
 		}
-		if (MadokuTime.isEnabled()) {
-			return Math.max(0L, MadokuTime.getCurrentAbsoluteDayTime(level));
+		if (MadokuTimeManager.isEnabled()) {
+			return Math.max(0L, MadokuTimeManager.getCurrentAbsoluteDayTime(level));
 		}
 		return Math.max(0L, level.getOverworldClockTime());
 	}
@@ -355,17 +437,17 @@ public final class MadokuEntities {
 	}
 
 	private static JsonObject createDefaultData() {
-		JsonObject root = new JsonObject();
-		root.addProperty(DATA_NEXT_HAG_SPAWN_DAY, -1L);
-		root.addProperty(DATA_LAST_HAG_CHECK_DAY, Long.MIN_VALUE);
-		return root;
+		return JSONFormatManager.object()
+			.put(DATA_NEXT_HAG_SPAWN_DAY, -1L)
+			.put(DATA_LAST_HAG_CHECK_DAY, Long.MIN_VALUE)
+			.build();
 	}
 
 	private static JsonObject toPersistedData() {
-		JsonObject root = new JsonObject();
-		root.addProperty(DATA_NEXT_HAG_SPAWN_DAY, nextWanderingHagSpawnDay);
-		root.addProperty(DATA_LAST_HAG_CHECK_DAY, lastProcessedWanderingHagDay);
-		return root;
+		return JSONFormatManager.object()
+			.put(DATA_NEXT_HAG_SPAWN_DAY, nextWanderingHagSpawnDay)
+			.put(DATA_LAST_HAG_CHECK_DAY, lastProcessedWanderingHagDay)
+			.build();
 	}
 
 	private static long getLong(JsonObject root, String key, long fallback) {

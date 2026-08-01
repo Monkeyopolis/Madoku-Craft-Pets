@@ -1,8 +1,8 @@
 package madoku.craft.mixin;
 
-import madoku.craft.pet.PlayerEntitiesHolder;
-import madoku.craft.pet.PlayerEntitiesInventory;
-import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.pet.PetComponentsManager.PetHolder;
+import madoku.craft.pet.PetComponentsManager.PetInventory;
+import madoku.craft.pet.PetEntitiesManager;
 import net.minecraft.network.protocol.game.ServerboundSetCreativeModeSlotPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
@@ -20,29 +20,58 @@ public abstract class ServerGamePacketListenerCreativePetSlotMixin {
 
 	@Inject(method = "handleSetCreativeModeSlot", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$handleCreativePetSlots(ServerboundSetCreativeModeSlotPacket packet, CallbackInfo ci) {
-		if (player == null || packet == null) {
+		if (player == null || packet == null || !player.isCreative()) {
 			return;
 		}
 
 		int slotNum = packet.slotNum();
-		if (slotNum < PlayerEntitiesSystem.FIRST_SLOT_INDEX || slotNum >= PlayerEntitiesSystem.FIRST_SLOT_INDEX + PlayerEntitiesSystem.SLOT_COUNT) {
+		if (slotNum < PetEntitiesManager.FIRST_SLOT_INDEX || slotNum >= PetEntitiesManager.FIRST_SLOT_INDEX + PetEntitiesManager.SLOT_COUNT) {
 			return;
 		}
 
-		if (!(player instanceof PlayerEntitiesHolder holder)) {
+		if (!(player instanceof PetHolder holder)) {
 			return;
 		}
 
-		PlayerEntitiesInventory inventory = holder.madokuCraft$getPlayerEntitiesInventory();
+		PetInventory inventory = holder.madokuCraft$getPetInventory();
 		if (inventory == null) {
 			return;
 		}
 
-		int petSlot = slotNum - PlayerEntitiesSystem.FIRST_SLOT_INDEX;
+		int petSlot = slotNum - PetEntitiesManager.FIRST_SLOT_INDEX;
 		ItemStack packetStack = packet.itemStack();
-		ItemStack resolved = PlayerEntitiesSystem.isValidPlayerEntity(packetStack)
-			? packetStack.copyWithCount(1)
-			: ItemStack.EMPTY;
+		ItemStack beforeSlotStack = inventory.getItem(petSlot).copy();
+		ItemStack resolved = ItemStack.EMPTY;
+		boolean validPacketStack = false;
+		if (packetStack.isEmpty()) {
+			if (beforeSlotStack.isEmpty()) {
+				madokuCraft$resyncMenus();
+				ci.cancel();
+				return;
+			}
+
+			inventory.setItem(petSlot, ItemStack.EMPTY);
+			inventory.setChanged();
+			madokuCraft$resyncMenus();
+			ci.cancel();
+			return;
+		}
+
+		validPacketStack = PetEntitiesManager.isValid(packetStack);
+		if (!validPacketStack) {
+			madokuCraft$resyncMenus();
+			ci.cancel();
+			return;
+		}
+
+		// Creative packet ordering does not reliably preserve carried stack state.
+		// Trust validated packet stack for this custom slot; client-side mixin gates intent.
+		resolved = packetStack.copyWithCount(1);
+		if (ItemStack.isSameItemSameComponents(beforeSlotStack, resolved) && beforeSlotStack.getCount() == resolved.getCount()) {
+			madokuCraft$resyncMenus();
+			ci.cancel();
+			return;
+		}
 
 		inventory.setItem(petSlot, resolved);
 		inventory.setChanged();
@@ -51,5 +80,15 @@ public abstract class ServerGamePacketListenerCreativePetSlotMixin {
 			player.containerMenu.broadcastChanges();
 		}
 		ci.cancel();
+	}
+
+	private void madokuCraft$resyncMenus() {
+		if (player == null) {
+			return;
+		}
+		player.inventoryMenu.broadcastChanges();
+		if (player.containerMenu != null && player.containerMenu != player.inventoryMenu) {
+			player.containerMenu.broadcastChanges();
+		}
 	}
 }
