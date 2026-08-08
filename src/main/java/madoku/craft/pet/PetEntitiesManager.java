@@ -197,7 +197,11 @@ public final class PetEntitiesManager {
 				MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION,
 				MadokuPetManager.PET_ABILITY_EGG_PROJECTILE
 			));
-			defaults.put("cow", PetRule.defaultsForEntity("minecraft:cow", MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK));
+			defaults.put("cow", PetRule.defaultsForEntity(
+				"minecraft:cow",
+				MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK,
+				MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION
+			));
 			defaults.put("creeper", PetRule.defaultsForEntity("minecraft:creeper", MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE));
 			defaults.put("pig", PetRule.defaultsForEntity("minecraft:pig", MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS));
 			defaults.put("sheep", PetRule.defaultsForEntity("minecraft:sheep", MadokuPetManager.PET_ABILITY_ARMOR_BONUS));
@@ -248,6 +252,7 @@ public final class PetEntitiesManager {
 	}
 
 	public static void onInventoryChanged(ServerPlayer player) {
+
 		if (player == null) return;
 		PetHudManager.markAbilityHudDirty(player.getUUID());
 		PetAbilitiesManager.applyPlayerMaxHealthAbilityBonus(player);
@@ -470,14 +475,14 @@ public final class PetEntitiesManager {
 			}
 
 			if (rule == null) {
-				if (!stack.isEmpty()) {
-				}
+				PetAbilitiesManager.stopBeeSwarmForSlot(player.getUUID(), slot);
 				removePet(server, petIds[slot]);
 				petIds[slot] = null;
 				continue;
 			}
 
 			if (pet == null || pet.level() != player.level() || !rule.petId.equals(pet.petId()) || pet.petSlot() != slot || !player.getUUID().equals(pet.ownerUuid())) {
+				PetAbilitiesManager.stopBeeSwarmForSlot(player.getUUID(), slot);
 				removePet(server, petIds[slot]);
 				pet = spawnPet(player, slot, rule, PetEntitiesManager.petLevel(stack));
 				petIds[slot] = pet == null ? null : pet.getUUID();
@@ -487,11 +492,11 @@ public final class PetEntitiesManager {
 				ACTIVE_PET_IDS.add(pet.getUUID());
 				petIds[slot] = pet.getUUID();
 				ensurePetConfiguration(pet, rule, PetEntitiesManager.petLevel(stack));
-					boolean beeSwarmActive = rule.hasAbility(MadokuPetManager.PET_ABILITY_BEE_SWARM) && PetAbilitiesManager.isBeeSwarmActive(player.getUUID(), slot);
+				boolean beeSwarmActive = rule.hasAbility(MadokuPetManager.PET_ABILITY_BEE_SWARM) && PetAbilitiesManager.isBeeSwarmActive(player.getUUID(), slot);
 				if (beeSwarmActive) {
 					nextDelay = Math.min(nextDelay, activeSchedulerTickInterval(server));
 				} else {
-						nextDelay = Math.min(nextDelay, MovementController.updatePetPosition(
+					nextDelay = Math.min(nextDelay, MovementController.updatePetPosition(
 						player,
 						pet,
 						slot,
@@ -525,7 +530,9 @@ public final class PetEntitiesManager {
 		}
 
 		Vec3 desiredPosition = MovementController.resolveDesiredPosition(owner, slot, pet);
-		pet.snapTo(desiredPosition.x, desiredPosition.y, desiredPosition.z, owner.getYRot(), 0.0F);
+		pet.teleportTo(desiredPosition.x, desiredPosition.y, desiredPosition.z);
+		pet.setYRot(owner.getYRot());
+		pet.setYHeadRot(owner.getYRot());
 		pet.setOwnerUuid(owner.getUUID());
 		pet.setPetSlot(slot);
 		pet.setPetLevel(level);
@@ -748,6 +755,7 @@ public final class PetEntitiesManager {
 				SlotOffset offset = SLOT_OFFSETS[Math.max(0, Math.min(SLOT_OFFSETS.length - 1, slot))];
 				Vec3 horizontalForward = resolveFollowDirection(owner);
 				Vec3 right = new Vec3(-horizontalForward.z, 0.0D, horizontalForward.x);
+
 				double verticalOffset = 0.10D;
 				if (isHoveringPet(pet)) {
 					verticalOffset = owner.getBbHeight() * 0.75D + hoverPetSlotVerticalOffset(pet, slot);

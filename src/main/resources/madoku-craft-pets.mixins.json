@@ -13,7 +13,8 @@
 		"PetInventoryMixin",
 		"ServerEntityPetUpdateIntervalMixin",
 		"ServerGamePacketListenerCreativePetSlotMixin",
-		"ServerGamePacketListenerPetLeftClickMixin"
+		"ServerGamePacketListenerPetLeftClickMixin",
+		"ServerPlayerTeleportPetMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

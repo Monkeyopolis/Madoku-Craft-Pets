@@ -8,14 +8,14 @@ You can customize most of these features in the config files.
 ## Dependencies:
 
 - Fabric API
-- Madoku Craft API
+- Madoku Craft: API
 
 ## Features:
 
 Pets:
 
 - Equipping a pet item allows you to have a mini pet.
-- Each pet has an Ability that helps you.
+- Each pet has an ability that helps you.
 - These pets follow you around and teleport with you.
 
 Hag:

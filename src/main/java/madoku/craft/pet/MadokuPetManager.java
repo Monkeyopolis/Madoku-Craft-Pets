@@ -22,6 +22,7 @@ import madoku.craft.pet.PetComponentsManager.PetInventory;
 
 public final class MadokuPetManager {
 	public static final int SLOT_COUNT = 4;
+	static final int MAX_ABILITY_COOLDOWNS_PER_PET = 3;
 	public static final int FIRST_SLOT_INDEX = 46;
 	public static final int SLOT_X = 77;
 	public static final int[] SLOT_YS = {8, 26, 44, 62};
@@ -45,6 +46,7 @@ public final class MadokuPetManager {
 	static final String PET_ABILITY_MAX_HEALTH_BONUS = "max_health_bonus";
 	static final String PET_ABILITY_ARMOR_BONUS = "armor_bonus";
 	static final String PET_ABILITY_DAMAGE_BLOCK = "damage_block";
+	static final String PET_ABILITY_HEALTH_REGENERATION = "health_regeneration";
 	static final String PET_ABILITY_MOB_SCAN = "mob_scan";
 	static final String PET_ABILITY_BEE_SWARM = "bee_swarm";
 	static final String PET_RARITY_COMMON = "common";
@@ -53,36 +55,7 @@ public final class MadokuPetManager {
 	static final String PET_RARITY_LEGENDARY = "legendary";
 	static final String PET_RARITY_MYTHIC = "mythic";
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
-
-
-
 
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
 	private static volatile String runtimeSchedulerId = "";
@@ -156,7 +129,7 @@ public final class MadokuPetManager {
 		}
 
 		reloadConfig();
-		JsonObject data = DataPlayerManager.getSystemData(DATA_FILE_NAME, "slot-cooldowns", "uuid");
+		JsonObject data = DataPlayerManager.getSystemData(DATA_FILE_NAME, "ability-cooldowns", "uuid");
 		PetAbilitiesManager.applyPersistedData(data);
 		PetEntitiesManager.removeAllPetEntitiesOnServerStart(server);
 		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
@@ -181,7 +154,7 @@ public final class MadokuPetManager {
 			return;
 		}
 
-		DataPlayerManager.setSystemData(DATA_FILE_NAME, PetAbilitiesManager.toPersistedData(), "slot-cooldowns", "uuid");
+		DataPlayerManager.setSystemData(DATA_FILE_NAME, PetAbilitiesManager.toPersistedData(), "ability-cooldowns", "uuid");
 	}
 
 	private static void onPlayerTickPhase(MinecraftServer server) {
@@ -189,8 +162,8 @@ public final class MadokuPetManager {
 			return;
 		}
 		long gameplayTick = MadokuTimeManager.getGameplayTicks();
-		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			onPlayerTick(server, player, gameplayTick);
+			for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+				onPlayerTick(server, player, gameplayTick);
 		}
 	}
 
@@ -213,6 +186,7 @@ public final class MadokuPetManager {
 
 		PetAbilitiesManager.tickWebControls(server);
 		PetAbilitiesManager.tickManagedHomingArrows(server);
+		PetAbilitiesManager.tickHealthRegeneration(server);
 		PetAbilitiesManager.tickManagedWebProjectiles(server);
 		PetAbilitiesManager.tickManagedExplosiveProjectiles(server);
 		PetAbilitiesManager.tickManagedChickenEggProjectiles(server);
@@ -275,6 +249,7 @@ public final class MadokuPetManager {
 		);
 		return runtimeSchedulerId;
 	}
+
 
 	private static boolean enqueueRuntimeTask(String schedulerId, long delayTicks) {
 		if (schedulerId == null || schedulerId.isBlank()) {
@@ -404,73 +379,16 @@ public final class MadokuPetManager {
 		}
 	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+	/** Requests immediate pet reconciliation after a player position or dimension change. */
+	public static void handlePlayerTeleport(ServerPlayer player) {
+		if (player == null) {
+			return;
+		}
+		MinecraftServer server = player.level().getServer();
+		if (server != null) {
+			requestPetProcessing(server, player.getUUID(), 0L);
+		}
+	}
 
 	static void requestPetProcessing(MinecraftServer server, UUID playerId, long delayTicks) {
 		if (server == null || playerId == null || !PetConfigManager.settings().enabled) {
@@ -483,24 +401,6 @@ public final class MadokuPetManager {
 			NEXT_PROCESS_TICKS_BY_PLAYER.put(playerId, targetTick);
 		}
 	}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 	static String formatAbilityAmount(double value) {
 		double rounded = Math.round(value * 100.0D) / 100.0D;

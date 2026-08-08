@@ -16,7 +16,7 @@ public abstract class LivingEntityPetAbilityDamageMixin {
 		float adjusted = cir.getReturnValueF();
 		adjusted = PetAbilitiesManager.applyFallDamage(entity, source, adjusted);
 		adjusted = PetAbilitiesManager.applyDamageBlock(entity, source, adjusted);
-		adjusted = PetAbilitiesManager.applyMobScanDamage(entity, adjusted);
+		adjusted = PetAbilitiesManager.applyDamageVulnerabilities(entity, adjusted);
 		cir.setReturnValue(adjusted);
 	}
 }
