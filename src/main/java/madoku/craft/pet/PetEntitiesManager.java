@@ -6,7 +6,6 @@ import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRe
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.core.BlockPos;
 import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
@@ -69,7 +68,6 @@ public final class PetEntitiesManager {
 	private static final Set<UUID> PET_INDEX_RECOVERED_OWNERS = ConcurrentHashMap.newKeySet();
 	/** Runtime UUID lookup avoids walking every server level for indexed pets. */
 	private static final Map<UUID, MadokuPetEntity> PET_ENTITIES_BY_ID = new ConcurrentHashMap<>();
-	static final Set<UUID> ACTIVE_PET_IDS = ConcurrentHashMap.newKeySet();
 	static final Map<UUID, Long> NEXT_IDLE_MOVE_BY_PET = new ConcurrentHashMap<>();
 	static final Map<UUID, FollowCommand> FOLLOW_COMMANDS_BY_PET = new ConcurrentHashMap<>();
 
@@ -228,20 +226,19 @@ public final class PetEntitiesManager {
 		PET_IDS_BY_PLAYER.clear();
 		PET_INDEX_RECOVERED_OWNERS.clear();
 		PET_ENTITIES_BY_ID.clear();
-		ACTIVE_PET_IDS.clear();
 		NEXT_IDLE_MOVE_BY_PET.clear();
 		FOLLOW_COMMANDS_BY_PET.clear();
 	}
 
 	static void clearAllManagedPetState(MinecraftServer server) {
-		if (!ACTIVE_PET_IDS.isEmpty() || !PET_IDS_BY_PLAYER.isEmpty()) {
+		if (!PET_ENTITIES_BY_ID.isEmpty() || !PET_IDS_BY_PLAYER.isEmpty()) {
 			removeAllPetEntities(server);
 		}
 		reset();
 	}
 
 	static void clearManagedPetEntityState(MinecraftServer server) {
-		if (!ACTIVE_PET_IDS.isEmpty() || !PET_IDS_BY_PLAYER.isEmpty()) {
+		if (!PET_ENTITIES_BY_ID.isEmpty() || !PET_IDS_BY_PLAYER.isEmpty()) {
 			removeAllPetEntities(server);
 		}
 		reset();
@@ -252,20 +249,15 @@ public final class PetEntitiesManager {
 	}
 
 	public static void onInventoryChanged(ServerPlayer player) {
-
 		if (player == null) return;
 		PetHudManager.markAbilityHudDirty(player.getUUID());
-		PetAbilitiesManager.applyPlayerMaxHealthAbilityBonus(player);
-		PetAbilitiesManager.applyPlayerArmorAbilityBonus(player);
-		PetAbilitiesManager.applyPlayerDamageAbilityBonus(player);
+		PetAbilitiesManager.applyPlayerPassiveAbilityBonuses(player);
 		MinecraftServer server = player.level().getServer();
 		if (server == null) return;
-		if (!PetConfigManager.isEnabled() || !PetConfigManager.areEntitiesEnabled()) {
-			removeAllPets(server, player.getUUID());
+		if (!PetConfigManager.isEnabled()) {
 			return;
 		}
 		MadokuPetManager.requestPetProcessing(server, player.getUUID(), 0L);
-		MadokuPetManager.onPlayerTick(server, player, MadokuTimeManager.getGameplayTicks());
 	}
 
 	public static boolean isManaged(Entity entity) {
@@ -296,17 +288,25 @@ public final class PetEntitiesManager {
 		return activeSchedulerTickInterval(server);
 	}
 
+	static boolean hasRuntimeWork() {
+		return !PET_ENTITIES_BY_ID.isEmpty() || !PET_IDS_BY_PLAYER.isEmpty();
+	}
+
 	static void removeAllPets(MinecraftServer server, UUID playerId) {
 		PetAbilitiesManager.stopBeeSwarmsForOwner(playerId);
 		UUID[] petIds = PET_IDS_BY_PLAYER.remove(playerId);
-		boolean hadIndexedState = petIds != null || PET_INDEX_RECOVERED_OWNERS.contains(playerId);
+		boolean needsIndexRecovery = petIds == null;
 		PET_INDEX_RECOVERED_OWNERS.remove(playerId);
 		if (petIds != null) {
 			for (UUID petId : petIds) {
-				removePet(server, petId);
+				if (petId != null && !removePet(server, petId)) {
+					needsIndexRecovery = true;
+				}
 			}
 		}
-		if (server != null && playerId != null && hadIndexedState) {
+		if (server != null && playerId != null && needsIndexRecovery) {
+			// The owner/slot index is authoritative during normal runtime. Only scan all
+			// dimensions when no index exists and recovery is actually required.
 			for (ServerLevel level : server.getAllLevels()) {
 				List<Entity> entities = new ArrayList<>();
 				for (Entity entity : level.getAllEntities()) {
@@ -321,17 +321,17 @@ public final class PetEntitiesManager {
 		}
 	}
 
-	static void removePet(MinecraftServer server, UUID petId) {
+	static boolean removePet(MinecraftServer server, UUID petId) {
 		Mob pet = findMob(server, petId);
 		if (pet != null) {
 			pet.discard();
 		}
 		if (petId != null) {
 			PET_ENTITIES_BY_ID.remove(petId);
-			ACTIVE_PET_IDS.remove(petId);
 			NEXT_IDLE_MOVE_BY_PET.remove(petId);
 			FOLLOW_COMMANDS_BY_PET.remove(petId);
 		}
+		return pet != null;
 	}
 
 	static Mob findMob(MinecraftServer server, UUID entityId) {
@@ -489,10 +489,9 @@ public final class PetEntitiesManager {
 			}
 
 			if (pet != null) {
-				ACTIVE_PET_IDS.add(pet.getUUID());
 				petIds[slot] = pet.getUUID();
 				ensurePetConfiguration(pet, rule, PetEntitiesManager.petLevel(stack));
-				boolean beeSwarmActive = rule.hasAbility(MadokuPetManager.PET_ABILITY_BEE_SWARM) && PetAbilitiesManager.isBeeSwarmActive(player.getUUID(), slot);
+					boolean beeSwarmActive = rule.hasAbility(MadokuPetManager.PET_ABILITY_BEE_SWARM) && PetAbilitiesManager.isBeeSwarmActive(player.getUUID(), slot);
 				if (beeSwarmActive) {
 					nextDelay = Math.min(nextDelay, activeSchedulerTickInterval(server));
 				} else {
@@ -530,9 +529,7 @@ public final class PetEntitiesManager {
 		}
 
 		Vec3 desiredPosition = MovementController.resolveDesiredPosition(owner, slot, pet);
-		pet.teleportTo(desiredPosition.x, desiredPosition.y, desiredPosition.z);
-		pet.setYRot(owner.getYRot());
-		pet.setYHeadRot(owner.getYRot());
+		pet.snapTo(desiredPosition.x, desiredPosition.y, desiredPosition.z, owner.getYRot(), 0.0F);
 		pet.setOwnerUuid(owner.getUUID());
 		pet.setPetSlot(slot);
 		pet.setPetLevel(level);
@@ -543,7 +540,6 @@ public final class PetEntitiesManager {
 		}
 
 		PET_ENTITIES_BY_ID.put(pet.getUUID(), pet);
-		ACTIVE_PET_IDS.add(pet.getUUID());
 		indexPet(pet);
 		return pet;
 	}
@@ -651,7 +647,9 @@ public final class PetEntitiesManager {
 				double teleportDistance = (rule == null ? 8.0D : rule.teleportDistance) * creativeDistanceMultiplier;
 				double teleportDistanceSqr = teleportDistance * teleportDistance;
 				if (ownerDistanceSqr > teleportDistanceSqr) {
-					pet.snapTo(desiredPosition.x, desiredPosition.y, desiredPosition.z, owner.getYRot(), 0.0F);
+					pet.teleportTo(desiredPosition.x, desiredPosition.y, desiredPosition.z);
+					pet.setYRot(owner.getYRot());
+					pet.setYHeadRot(owner.getYRot());
 					pet.getNavigation().stop();
 					pet.setDeltaMovement(Vec3.ZERO);
 					clearFollowCommand(pet.getUUID(), followCommandsByPet);
@@ -755,7 +753,6 @@ public final class PetEntitiesManager {
 				SlotOffset offset = SLOT_OFFSETS[Math.max(0, Math.min(SLOT_OFFSETS.length - 1, slot))];
 				Vec3 horizontalForward = resolveFollowDirection(owner);
 				Vec3 right = new Vec3(-horizontalForward.z, 0.0D, horizontalForward.x);
-
 				double verticalOffset = 0.10D;
 				if (isHoveringPet(pet)) {
 					verticalOffset = owner.getBbHeight() * 0.75D + hoverPetSlotVerticalOffset(pet, slot);

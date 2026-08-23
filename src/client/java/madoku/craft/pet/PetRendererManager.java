@@ -248,7 +248,6 @@ public final class PetRendererManager {
 			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor, null);
 			woolModel.setupAnim(state);
 			collector.submitModel(woolModel, state, poseStack, MadokuPetRenderer.texture("textures/entity/sheep/sheep_wool.png"), source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor, null);
-
 		}
 	}
 
