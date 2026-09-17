@@ -25,7 +25,7 @@ public final class MadokuPetEntity extends PathfinderMob {
 
 	MadokuPetEntity(EntityType<? extends PathfinderMob> entityType, Level level) {
 		super(entityType, level);
-		setInvulnerable(true);
+		setPermanentlyInvulnerable(true);
 		setPersistenceRequired();
 		setCanPickUpLoot(false);
 	}

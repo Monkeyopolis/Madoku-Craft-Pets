@@ -64,7 +64,7 @@ public final class PetComponentsManager {
 			int slot = occupiedSlots.get(index);
 			ItemStack stack = inventory.getItem(slot);
 			if (!stack.isEmpty()) {
-				player.drop(stack, true, false);
+				player.drop(stack, true, net.minecraft.util.Prediction.SERVER_ONLY);
 				inventory.setItem(slot, ItemStack.EMPTY);
 			}
 		}

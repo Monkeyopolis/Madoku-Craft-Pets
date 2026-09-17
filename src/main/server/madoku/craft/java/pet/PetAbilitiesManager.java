@@ -2833,7 +2833,7 @@ public final class PetAbilitiesManager {
 			if (entity == null) {
 				return;
 			}
-			entity.invulnerableTime = 0;
+			entity.setInvulnerableTime(0);
 			entity.hurtTime = 0;
 		}
 

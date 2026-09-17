@@ -197,7 +197,7 @@ public final class MadokuEntities {
 			hag.setCustomName(witch.getCustomName());
 			hag.setCustomNameVisible(witch.isCustomNameVisible());
 		}
-		hag.setInvulnerable(witch.isInvulnerable());
+		hag.setPermanentlyInvulnerable(witch.isInvulnerable());
 		hag.setSilent(witch.isSilent());
 		hag.setNoAi(witch.isNoAi());
 		if (witch.isPersistenceRequired()) {

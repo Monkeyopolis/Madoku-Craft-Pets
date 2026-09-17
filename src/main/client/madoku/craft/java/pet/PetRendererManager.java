@@ -113,7 +113,7 @@ public final class PetRendererManager {
 
 			poseStack.pushPose();
 			poseStack.scale(state.scale, state.scale, state.scale);
-			poseStack.mulPose(Axis.YP.rotationDegrees(180.0F - state.bodyRot));
+			poseStack.rotateDegrees(Axis.YP, 180.0F - state.bodyRot);
 			poseStack.scale(-1.0F, -1.0F, 1.0F);
 			poseStack.translate(0.0F, -1.501F, 0.0F);
 			profile.render(state, poseStack, collector);
@@ -146,7 +146,7 @@ public final class PetRendererManager {
 		@Override
 		public void render(PetRenderState source, PoseStack poseStack, SubmitNodeCollector collector) {
 			model.setupAnim(source);
-			collector.submitModel(model, source, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor, null);
+			collector.submitModel(model, source, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
 		}
 	}
 
@@ -165,7 +165,7 @@ public final class PetRendererManager {
 			state.isResting = false;
 			state.flyAnimationState.start(0);
 			model.setupAnim(state);
-			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor, null);
+			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
 		}
 	}
 
@@ -186,7 +186,7 @@ public final class PetRendererManager {
 			state.hasNectar = false;
 			state.hasStinger = false;
 			model.setupAnim(state);
-			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor, null);
+			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
 		}
 	}
 
@@ -205,7 +205,7 @@ public final class PetRendererManager {
 			state.flap = 0.0F;
 			state.flapSpeed = 0.0F;
 			model.setupAnim(state);
-			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor, null);
+			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
 		}
 	}
 
@@ -224,7 +224,7 @@ public final class PetRendererManager {
 			state.swelling = 0.0F;
 			state.isPowered = false;
 			model.setupAnim(state);
-			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor, null);
+			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
 		}
 	}
 
@@ -245,9 +245,9 @@ public final class PetRendererManager {
 			state.isSheared = false;
 			state.woolColor = net.minecraft.world.item.DyeColor.WHITE;
 			model.setupAnim(state);
-			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor, null);
+			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
 			woolModel.setupAnim(state);
-			collector.submitModel(woolModel, state, poseStack, MadokuPetRenderer.texture("textures/entity/sheep/sheep_wool.png"), source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor, null);
+			collector.submitModel(woolModel, state, poseStack, MadokuPetRenderer.texture("textures/entity/sheep/sheep_wool.png"), source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
 		}
 	}
 
@@ -267,7 +267,7 @@ public final class PetRendererManager {
 			state.isShaking = false;
 			state.isHoldingBow = false;
 			model.setupAnim(state);
-			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor, null);
+			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
 		}
 	}
 
@@ -286,7 +286,7 @@ public final class PetRendererManager {
 			state.isAggressive = false;
 			state.isConverting = false;
 			model.setupAnim(state);
-			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor, null);
+			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
 		}
 	}
 

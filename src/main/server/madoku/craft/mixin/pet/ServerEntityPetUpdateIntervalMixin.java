@@ -4,6 +4,7 @@ import madoku.craft.java.pet.MadokuPetEntity;
 import madoku.craft.java.pet.PetAPIManager;
 import net.minecraft.server.level.ServerEntity;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.UpdateInterval;
 import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,20 +21,20 @@ public abstract class ServerEntityPetUpdateIntervalMixin {
 
 	@Shadow
 	@Final
-	private int updateInterval;
+	private UpdateInterval updateInterval;
 
 	@Redirect(
 		method = "sendChanges",
 		at = @At(
 			value = "FIELD",
-			target = "Lnet/minecraft/server/level/ServerEntity;updateInterval:I",
+			target = "Lnet/minecraft/server/level/ServerEntity;updateInterval:Lnet/minecraft/world/entity/UpdateInterval;",
 			opcode = Opcodes.GETFIELD
 		)
 	)
-	private int madokuCraft$resolvePetUpdateInterval(ServerEntity tracker) {
+	private UpdateInterval madokuCraft$resolvePetUpdateInterval(ServerEntity tracker) {
 		if (entity instanceof MadokuPetEntity pet && pet.level().getServer() != null) {
 			long interval = PetAPIManager.managedPetSteeringInterval(pet.level().getServer());
-			return (int) Math.max(1L, Math.min(5L, interval));
+			return UpdateInterval.periodic((int) Math.max(1L, Math.min(5L, interval)));
 		}
 		return updateInterval;
 	}

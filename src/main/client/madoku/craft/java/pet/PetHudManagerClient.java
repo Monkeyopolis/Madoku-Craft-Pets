@@ -1,6 +1,6 @@
 package madoku.craft.java.pet;
 
-import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetHolder;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetInventory;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
