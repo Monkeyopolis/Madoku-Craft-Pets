@@ -51,8 +51,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class PetAbilitiesManager {
 	private static final Identifier PLAYER_DAMAGE_MODIFIER = Identifier.fromNamespaceAndPath("madoku-craft", "madoku_pets_player_damage_bonus");
 	private static final Identifier PLAYER_HEALTH_MODIFIER = Identifier.fromNamespaceAndPath("madoku-craft", "madoku_pets_player_max_health_bonus");
-	private static final Identifier PLAYER_ARMOR_MODIFIER = Identifier.fromNamespaceAndPath("madoku-craft", "madoku_pets_player_armor_bonus");
-	private static final Identifier PLAYER_ARMOR_TOUGHNESS_MODIFIER = Identifier.fromNamespaceAndPath("madoku-craft", "madoku_pets_player_armor_toughness_bonus");
 	private static final int SLOT_COUNT = PetEntitiesManager.SLOT_COUNT;
 	private static final long PENDING_ATTACK_EXPIRATION_TICKS = 5L * 60L * 20L;
 	private static final String PET_ABILITY_RANGED_HOMING_ARROW = MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW;
@@ -62,7 +60,7 @@ public final class PetAbilitiesManager {
 	private static final String PET_ABILITY_PLAYER_DAMAGE_BONUS = MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS;
 	private static final String PET_ABILITY_FALL_DAMAGE_REDUCTION = MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION;
 	private static final String PET_ABILITY_MAX_HEALTH_BONUS = MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS;
-	private static final String PET_ABILITY_ARMOR_BONUS = MadokuPetManager.PET_ABILITY_ARMOR_BONUS;
+	private static final String PET_ABILITY_DAMAGE_REDUCTION = MadokuPetManager.PET_ABILITY_DAMAGE_REDUCTION;
 	private static final String PET_ABILITY_DAMAGE_BLOCK = MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK;
 	private static final String PET_ABILITY_HEALTH_REGENERATION = MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION;
 	private static final String PET_ABILITY_MOB_SCAN = MadokuPetManager.PET_ABILITY_MOB_SCAN;
@@ -346,7 +344,7 @@ public final class PetAbilitiesManager {
 					MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS,
 					MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION,
 					MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS,
-					MadokuPetManager.PET_ABILITY_ARMOR_BONUS,
+					MadokuPetManager.PET_ABILITY_DAMAGE_REDUCTION,
 					MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK,
 					MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION,
 					MadokuPetManager.PET_ABILITY_MOB_SCAN,
@@ -673,14 +671,12 @@ public final class PetAbilitiesManager {
 		return Math.max(0.0D, sumAbility(player, PET_ABILITY_MAX_HEALTH_BONUS));
 	}
 
-	public static double armorBonus(ServerPlayer player) {
-		return Math.max(0.0D, sumAbility(player, PET_ABILITY_ARMOR_BONUS));
+	public static double damageReduction(ServerPlayer player) {
+		return Math.min(1.0D, Math.max(0.0D, sumAbility(player, PET_ABILITY_DAMAGE_REDUCTION)));
 	}
 
 	/**
-	 * Rebuilds all passive player modifiers from one inventory traversal. Passive
-	 * modifiers are refreshed together, so armor and armor toughness do not scan
-	 * the same pet slots independently.
+	 * Rebuilds all passive player attribute modifiers from one inventory traversal.
 	 */
 	public static void applyPlayerPassiveAbilityBonuses(ServerPlayer player) {
 		if (player == null) return;
@@ -695,26 +691,6 @@ public final class PetAbilitiesManager {
 				));
 			}
 			if (player.getHealth() > player.getMaxHealth()) player.setHealth(player.getMaxHealth());
-		}
-
-		AttributeInstance armor = player.getAttribute(Attributes.ARMOR);
-		if (armor != null) {
-			armor.removeModifier(PLAYER_ARMOR_MODIFIER);
-			if (bonuses.armor() > 0.0D) {
-				armor.addOrUpdateTransientModifier(new AttributeModifier(
-					PLAYER_ARMOR_MODIFIER, bonuses.armor(), AttributeModifier.Operation.ADD_VALUE
-				));
-			}
-		}
-
-		AttributeInstance armorToughness = player.getAttribute(Attributes.ARMOR_TOUGHNESS);
-		if (armorToughness != null) {
-			armorToughness.removeModifier(PLAYER_ARMOR_TOUGHNESS_MODIFIER);
-			if (bonuses.armor() > 0.0D) {
-				armorToughness.addOrUpdateTransientModifier(new AttributeModifier(
-					PLAYER_ARMOR_TOUGHNESS_MODIFIER, bonuses.armor(), AttributeModifier.Operation.ADD_VALUE
-				));
-			}
 		}
 
 		AttributeInstance damage = player.getAttribute(Attributes.ATTACK_DAMAGE);
@@ -734,19 +710,20 @@ public final class PetAbilitiesManager {
 		if (inventory == null) return PassiveBonuses.EMPTY;
 		double damage = 0.0D;
 		double maxHealth = 0.0D;
-		double armor = 0.0D;
 		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
 			PetRule rule = PetConfigManager.resolvePetRule(inventory.getItem(slot));
 			if (rule == null) continue;
 			if (rule.hasAbility(PET_ABILITY_PLAYER_DAMAGE_BONUS)) damage += rule.playerDamageBonus();
 			if (rule.hasAbility(PET_ABILITY_MAX_HEALTH_BONUS)) maxHealth += rule.maxHealthBonus();
-			if (rule.hasAbility(PET_ABILITY_ARMOR_BONUS)) armor += rule.armorBonus();
 		}
-		return new PassiveBonuses(Math.max(0.0D, damage), Math.max(0.0D, maxHealth), Math.max(0.0D, armor));
+		return new PassiveBonuses(
+			Math.max(0.0D, damage),
+			Math.max(0.0D, maxHealth)
+		);
 	}
 
-	private record PassiveBonuses(double damage, double maxHealth, double armor) {
-		private static final PassiveBonuses EMPTY = new PassiveBonuses(0.0D, 0.0D, 0.0D);
+	private record PassiveBonuses(double damage, double maxHealth) {
+		private static final PassiveBonuses EMPTY = new PassiveBonuses(0.0D, 0.0D);
 	}
 
 	private static double sumAbility(ServerPlayer player, String abilityType) {
@@ -777,7 +754,7 @@ public final class PetAbilitiesManager {
 				case PET_ABILITY_PLAYER_DAMAGE_BONUS -> rule.playerDamageBonus();
 				case PET_ABILITY_FALL_DAMAGE_REDUCTION -> rule.fallDamageReduction();
 				case PET_ABILITY_MAX_HEALTH_BONUS -> rule.maxHealthBonus();
-				case PET_ABILITY_ARMOR_BONUS -> rule.armorBonus();
+				case PET_ABILITY_DAMAGE_REDUCTION -> rule.damageReduction();
 				default -> 0.0D;
 			};
 		}
@@ -792,6 +769,12 @@ public final class PetAbilitiesManager {
 	public static float applyFallDamage(LivingEntity entity, net.minecraft.world.damagesource.DamageSource source, float amount) {
 		if (!(entity instanceof ServerPlayer player) || source == null || amount <= 0.0F || !source.is(DamageTypeTags.IS_FALL)) return amount;
 		double reduction = fallDamageReduction(player);
+		return reduction <= 0.0D ? amount : (float) Math.max(0.0D, amount * (1.0D - reduction));
+	}
+
+	public static float applyDamageReduction(LivingEntity entity, net.minecraft.world.damagesource.DamageSource source, float amount) {
+		if (!(entity instanceof ServerPlayer player) || amount <= 0.0F || !PetConfigManager.isEnabled()) return amount;
+		double reduction = damageReduction(player);
 		return reduction <= 0.0D ? amount : (float) Math.max(0.0D, amount * (1.0D - reduction));
 	}
 
@@ -995,24 +978,6 @@ public final class PetAbilitiesManager {
 		double bonus = maxHealthBonus(player);
 		if (bonus > 0.0D) attribute.addOrUpdateTransientModifier(new AttributeModifier(PLAYER_HEALTH_MODIFIER, bonus, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
 		if (player.getHealth() > player.getMaxHealth()) player.setHealth(player.getMaxHealth());
-	}
-
-	public static void applyPlayerArmorAbilityBonus(ServerPlayer player) {
-		if (player == null) return;
-		AttributeInstance attribute = player.getAttribute(Attributes.ARMOR);
-		if (attribute == null) return;
-		attribute.removeModifier(PLAYER_ARMOR_MODIFIER);
-		double bonus = armorBonus(player);
-		if (bonus > 0.0D) attribute.addOrUpdateTransientModifier(new AttributeModifier(PLAYER_ARMOR_MODIFIER, bonus, AttributeModifier.Operation.ADD_VALUE));
-	}
-
-	public static void applyPlayerArmorToughnessAbilityBonus(ServerPlayer player) {
-		if (player == null) return;
-		AttributeInstance attribute = player.getAttribute(Attributes.ARMOR_TOUGHNESS);
-		if (attribute == null) return;
-		attribute.removeModifier(PLAYER_ARMOR_TOUGHNESS_MODIFIER);
-		double bonus = armorBonus(player);
-		if (bonus > 0.0D) attribute.addOrUpdateTransientModifier(new AttributeModifier(PLAYER_ARMOR_TOUGHNESS_MODIFIER, bonus, AttributeModifier.Operation.ADD_VALUE));
 	}
 
 	public static void applyPlayerDamageAbilityBonus(ServerPlayer player) {

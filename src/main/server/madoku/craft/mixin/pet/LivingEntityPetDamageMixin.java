@@ -25,7 +25,8 @@ public abstract class LivingEntityPetDamageMixin {
 
 		LivingEntity entity = (LivingEntity) (Object) this;
 		if (entity instanceof ServerPlayer) {
-			cir.setReturnValue(PetAbilitiesAPIManager.applyDamageBlock(entity, source, cir.getReturnValue()));
+			float damage = PetAbilitiesAPIManager.applyDamageReduction(entity, source, cir.getReturnValue());
+			cir.setReturnValue(PetAbilitiesAPIManager.applyDamageBlock(entity, source, damage));
 		}
 	}
 

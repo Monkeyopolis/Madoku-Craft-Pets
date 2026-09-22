@@ -33,13 +33,12 @@ public final class PetAbilitiesAPIManager {
 	public static double playerDamageBonus(ServerPlayer player) { return provider.playerDamageBonus(player); }
 	public static double fallDamageReduction(ServerPlayer player) { return provider.fallDamageReduction(player); }
 	public static double maxHealthBonus(ServerPlayer player) { return provider.maxHealthBonus(player); }
-	public static double armorBonus(ServerPlayer player) { return provider.armorBonus(player); }
+	public static double damageReduction(ServerPlayer player) { return provider.damageReduction(player); }
 	public static void applyPlayerPassiveAbilityBonuses(ServerPlayer player) { provider.applyPlayerPassiveAbilityBonuses(player); }
 	public static float applyFallDamage(LivingEntity entity, DamageSource source, float amount) { return provider.applyFallDamage(entity, source, amount); }
+	public static float applyDamageReduction(LivingEntity entity, DamageSource source, float amount) { return provider.applyDamageReduction(entity, source, amount); }
 	public static float applyDamageBlock(LivingEntity entity, DamageSource source, float amount) { return provider.applyDamageBlock(entity, source, amount); }
 	public static void applyPlayerMaxHealthAbilityBonus(ServerPlayer player) { provider.applyPlayerMaxHealthAbilityBonus(player); }
-	public static void applyPlayerArmorAbilityBonus(ServerPlayer player) { provider.applyPlayerArmorAbilityBonus(player); }
-	public static void applyPlayerArmorToughnessAbilityBonus(ServerPlayer player) { provider.applyPlayerArmorToughnessAbilityBonus(player); }
 	public static void applyPlayerDamageAbilityBonus(ServerPlayer player) { provider.applyPlayerDamageAbilityBonus(player); }
 	public static boolean hasAbility(Entity entity) { return provider.hasAbility(entity); }
 	public static boolean handleManagedChickenEggImpact(Entity projectile, HitResult hitResult) { return provider.handleManagedChickenEggImpact(projectile, hitResult); }

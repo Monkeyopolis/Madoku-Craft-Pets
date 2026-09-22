@@ -239,7 +239,7 @@ public final class PetEntitiesManager {
 			));
 			defaults.put("creeper", PetRule.defaultsForEntity("minecraft:creeper", MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE));
 			defaults.put("pig", PetRule.defaultsForEntity("minecraft:pig", MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS));
-			defaults.put("sheep", PetRule.defaultsForEntity("minecraft:sheep", MadokuPetManager.PET_ABILITY_ARMOR_BONUS));
+			defaults.put("sheep", PetRule.defaultsForEntity("minecraft:sheep", MadokuPetManager.PET_ABILITY_DAMAGE_REDUCTION));
 			defaults.put("skeleton", PetRule.defaultsForEntity("minecraft:skeleton", MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW));
 			defaults.put("spider", PetRule.defaultsForEntity("minecraft:spider", MadokuPetManager.PET_ABILITY_WEB_PROJECTILE));
 			defaults.put("zombie", PetRule.defaultsForEntity("minecraft:zombie", MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS));

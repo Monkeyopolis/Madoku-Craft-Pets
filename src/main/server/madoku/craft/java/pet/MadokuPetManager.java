@@ -47,7 +47,7 @@ public final class MadokuPetManager {
 	static final String PET_ABILITY_PLAYER_DAMAGE_BONUS = "player_damage_bonus";
 	static final String PET_ABILITY_FALL_DAMAGE_REDUCTION = "fall_damage_reduction";
 	static final String PET_ABILITY_MAX_HEALTH_BONUS = "max_health_bonus";
-	static final String PET_ABILITY_ARMOR_BONUS = "armor_bonus";
+	static final String PET_ABILITY_DAMAGE_REDUCTION = "damage_reduction";
 	static final String PET_ABILITY_DAMAGE_BLOCK = "damage_block";
 	static final String PET_ABILITY_HEALTH_REGENERATION = "health_regeneration";
 	static final String PET_ABILITY_MOB_SCAN = "mob_scan";

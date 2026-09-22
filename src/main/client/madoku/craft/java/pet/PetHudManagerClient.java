@@ -22,7 +22,7 @@ public final class PetHudManagerClient {
 	private static final Identifier ABILITY_ARROW_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/arrow-projectile.png");
 	private static final Identifier ABILITY_BEE_SWARM_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/bee-swarm.png");
 	private static final Identifier ABILITY_BLOCK_DAMAGE_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/block-damage.png");
-	private static final Identifier ABILITY_BONUS_ARMOR_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/bonus-armor.png");
+	private static final Identifier ABILITY_DAMAGE_REDUCTION_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/damage-reduction.png");
 	private static final Identifier ABILITY_BONUS_DAMAGE_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/bonus-damage.png");
 	private static final Identifier ABILITY_BONUS_HEALTH_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/bonus-health.png");
 	private static final Identifier ABILITY_EGG_VOLLEY_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/egg-volley.png");
@@ -165,7 +165,7 @@ public final class PetHudManagerClient {
 			case PetAPIManager.PET_ABILITY_RANGED_HOMING_ARROW -> ABILITY_ARROW_TEXTURE;
 			case PetAPIManager.PET_ABILITY_BEE_SWARM -> ABILITY_BEE_SWARM_TEXTURE;
 			case PetAPIManager.PET_ABILITY_DAMAGE_BLOCK -> ABILITY_BLOCK_DAMAGE_TEXTURE;
-			case PetAPIManager.PET_ABILITY_ARMOR_BONUS -> ABILITY_BONUS_ARMOR_TEXTURE;
+			case PetAPIManager.PET_ABILITY_DAMAGE_REDUCTION -> ABILITY_DAMAGE_REDUCTION_TEXTURE;
 			case PetAPIManager.PET_ABILITY_PLAYER_DAMAGE_BONUS -> ABILITY_BONUS_DAMAGE_TEXTURE;
 			case PetAPIManager.PET_ABILITY_MAX_HEALTH_BONUS -> ABILITY_BONUS_HEALTH_TEXTURE;
 			case PetAPIManager.PET_ABILITY_EGG_PROJECTILE -> ABILITY_EGG_VOLLEY_TEXTURE;

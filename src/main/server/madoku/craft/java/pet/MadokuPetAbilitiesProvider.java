@@ -25,13 +25,12 @@ public final class MadokuPetAbilitiesProvider implements PetAbilitiesProvider {
 	@Override public double playerDamageBonus(ServerPlayer player) { return PetAbilitiesManager.playerDamageBonus(player); }
 	@Override public double fallDamageReduction(ServerPlayer player) { return PetAbilitiesManager.fallDamageReduction(player); }
 	@Override public double maxHealthBonus(ServerPlayer player) { return PetAbilitiesManager.maxHealthBonus(player); }
-	@Override public double armorBonus(ServerPlayer player) { return PetAbilitiesManager.armorBonus(player); }
+	@Override public double damageReduction(ServerPlayer player) { return PetAbilitiesManager.damageReduction(player); }
 	@Override public void applyPlayerPassiveAbilityBonuses(ServerPlayer player) { PetAbilitiesManager.applyPlayerPassiveAbilityBonuses(player); }
 	@Override public float applyFallDamage(LivingEntity entity, DamageSource source, float amount) { return PetAbilitiesManager.applyFallDamage(entity, source, amount); }
+	@Override public float applyDamageReduction(LivingEntity entity, DamageSource source, float amount) { return PetAbilitiesManager.applyDamageReduction(entity, source, amount); }
 	@Override public float applyDamageBlock(LivingEntity entity, DamageSource source, float amount) { return PetAbilitiesManager.applyDamageBlock(entity, source, amount); }
 	@Override public void applyPlayerMaxHealthAbilityBonus(ServerPlayer player) { PetAbilitiesManager.applyPlayerMaxHealthAbilityBonus(player); }
-	@Override public void applyPlayerArmorAbilityBonus(ServerPlayer player) { PetAbilitiesManager.applyPlayerArmorAbilityBonus(player); }
-	@Override public void applyPlayerArmorToughnessAbilityBonus(ServerPlayer player) { PetAbilitiesManager.applyPlayerArmorToughnessAbilityBonus(player); }
 	@Override public void applyPlayerDamageAbilityBonus(ServerPlayer player) { PetAbilitiesManager.applyPlayerDamageAbilityBonus(player); }
 	@Override public boolean hasAbility(Entity entity) { return PetAbilitiesManager.hasAbility(entity); }
 	@Override public boolean handleManagedChickenEggImpact(Entity projectile, HitResult hitResult) { return PetAbilitiesManager.handleManagedChickenEggImpact(projectile, hitResult); }

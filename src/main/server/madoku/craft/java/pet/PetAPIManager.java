@@ -24,7 +24,7 @@ public final class PetAPIManager {
 	public static final String PET_ABILITY_PLAYER_DAMAGE_BONUS = "player_damage_bonus";
 	public static final String PET_ABILITY_FALL_DAMAGE_REDUCTION = "fall_damage_reduction";
 	public static final String PET_ABILITY_MAX_HEALTH_BONUS = "max_health_bonus";
-	public static final String PET_ABILITY_ARMOR_BONUS = "armor_bonus";
+	public static final String PET_ABILITY_DAMAGE_REDUCTION = "damage_reduction";
 	public static final String PET_ABILITY_DAMAGE_BLOCK = "damage_block";
 	public static final String PET_ABILITY_HEALTH_REGENERATION = "health_regeneration";
 	public static final String PET_ABILITY_MOB_SCAN = "mob_scan";
