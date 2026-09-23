@@ -4,7 +4,6 @@
   "compatibilityLevel": "JAVA_25",
   "mixins": [
     "pet.EntityPetBehaviorMixin",
-    "pet.InventoryMenuPetSlotsMixin",
     "pet.ItemCostEggVariantsMixin",
     "pet.LivingEntityPetBehaviorMixin",
     "pet.LivingEntityPetDamageMixin",
@@ -12,12 +11,10 @@
     "pet.PetInventoryMixin",
     "pet.PetItemTooltipMixin",
     "pet.ServerEntityPetUpdateIntervalMixin",
-    "pet.ServerGamePacketListenerCreativePetSlotMixin",
     "pet.ServerGamePacketListenerPetLeftClickMixin",
     "pet.ServerPlayerTeleportPetMixin"
   ],
   "client": [
-    "pet.CreativeModeInventoryScreenPetSlotMixin",
     "pet.MerchantScreenAccessor",
     "pet.PetLeftClickInputMixin"
   ],

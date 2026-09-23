@@ -26,11 +26,11 @@ import madoku.craft.java.pet.PetComponentsAPIManager.PetInventory;
 import madoku.craft.java.pet.entity.MadokuEntities;
 
 public final class MadokuPetManager {
-	public static final int SLOT_COUNT = 4;
+	public static final int SLOT_COUNT = 5;
 	static final int MAX_ABILITY_COOLDOWNS_PER_PET = 3;
-	public static final int FIRST_SLOT_INDEX = 46;
-	public static final int SLOT_X = 77;
-	public static final int[] SLOT_YS = {8, 26, 44, 62};
+	public static final int FIRST_SLOT_INDEX = 0;
+	public static final int SLOT_X = 12;
+	public static final int[] SLOT_YS = {22, 42, 62, 82, 102};
 	public static final String SAVE_KEY = "MadokuPets";
 
 	private static final String DATA_FILE_NAME = "madoku-pets";
@@ -68,6 +68,7 @@ public final class MadokuPetManager {
 	}
 
 	public static void initialize() {
+		PetMenuManager.initialize();
 		PetAPIManager.registerProvider(new MadokuPetProvider());
 		PetEntitiesManager.initialize();
 		MadokuEntities.initialize();

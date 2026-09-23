@@ -5,9 +5,33 @@ import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.ItemStack;
+
+import java.util.List;
 
 /** Public payload contracts used by the Madoku Pets network integration. */
 public final class PetPayloadAPIManager {
+	public record OpenPetMenuPayload() implements CustomPacketPayload {
+		public static final Type<OpenPetMenuPayload> TYPE = new Type<>(Identifier.fromNamespaceAndPath("madoku-craft", "open_pet_menu"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, OpenPetMenuPayload> CODEC = StreamCodec.unit(new OpenPetMenuPayload());
+		@Override public Type<OpenPetMenuPayload> type() { return TYPE; }
+	}
+
+	public record UpgradePetPayload() implements CustomPacketPayload {
+		public static final Type<UpgradePetPayload> TYPE = new Type<>(Identifier.fromNamespaceAndPath("madoku-craft", "upgrade_pet"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, UpgradePetPayload> CODEC = StreamCodec.unit(new UpgradePetPayload());
+		@Override public Type<UpgradePetPayload> type() { return TYPE; }
+	}
+
+	public record PetInventoryPayload(List<ItemStack> slots) implements CustomPacketPayload {
+		public static final Type<PetInventoryPayload> TYPE = new Type<>(Identifier.fromNamespaceAndPath("madoku-craft", "pet_inventory"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, PetInventoryPayload> CODEC = StreamCodec.composite(
+			ItemStack.OPTIONAL_LIST_STREAM_CODEC, PetInventoryPayload::slots,
+			PetInventoryPayload::new
+		);
+		@Override public Type<PetInventoryPayload> type() { return TYPE; }
+	}
+
 	public record LeftClickAirPayload() implements CustomPacketPayload {
 		public static final Type<LeftClickAirPayload> TYPE = new Type<>(Identifier.fromNamespaceAndPath("madoku-craft", "pet_left_click_air"));
 		public static final StreamCodec<RegistryFriendlyByteBuf, LeftClickAirPayload> CODEC = StreamCodec.unit(new LeftClickAirPayload());

@@ -71,6 +71,10 @@ public final class PetHagManager {
 	}
 
 	public static void applyLore(ItemStack stack) {
+		if (PetConfigManager.isValidPet(stack)) {
+			Tier tier = RarityAPIManager.fromString(rarity(stack));
+			RarityAPIManager.applyConfiguredRarity(stack, tier == null ? Tier.COMMON : tier);
+		}
 		PetHudManager.applySupportedPetLore(stack);
 	}
 }

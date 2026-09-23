@@ -3,11 +3,13 @@ package madoku.craft.mixin.pet;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetHolder;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetInventory;
 import madoku.craft.java.core.json.JSONAPIManager;
+import madoku.craft.java.core.rarity.RarityAPIManager;
 import madoku.craft.java.pet.PetEntitiesAPIManager;
-import madoku.craft.java.pet.PetHudAPIManager;
+import madoku.craft.java.pet.PetHagAPIManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Prediction;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -43,6 +45,11 @@ public abstract class PetInventoryMixin implements PetHolder {
 			}
 			output.putString(madokuCraft$slotKey(slot), itemId.toString());
 			output.putInt(madokuCraft$slotLevelKey(slot), PetEntitiesAPIManager.petLevel(stack));
+			output.putInt(madokuCraft$slotCountKey(slot), stack.getCount());
+			RarityAPIManager.Tier rarity = RarityAPIManager.detectAppliedRarity(stack);
+			if (rarity != null) {
+				output.putString(madokuCraft$slotRarityKey(slot), rarity.id());
+			}
 		}
 	}
 
@@ -65,16 +72,18 @@ public abstract class PetInventoryMixin implements PetHolder {
 					continue;
 				}
 
-				ItemStack stack = new ItemStack(item);
+				ItemStack stack = new ItemStack(item, Math.max(1, input.getIntOr(madokuCraft$slotCountKey(slot), 1)));
 				if (PetEntitiesAPIManager.isValid(stack)) {
 					PetEntitiesAPIManager.setPetLevel(stack, input.getIntOr(madokuCraft$slotLevelKey(slot), 1));
-					PetHudAPIManager.applySupportedPetLore(stack);
+					madokuCraft$restoreRarity(stack, input.getStringOr(madokuCraft$slotRarityKey(slot), ""));
+					PetHagAPIManager.applyLore(stack);
 					madokuCraft$petInventory.setItem(slot, stack);
 				} else {
 					madokuCraft$petInventory.setItem(slot, ItemStack.EMPTY);
 				}
 			}
 		});
+		madokuCraft$restoreLegacyUpgradeItems(input);
 	}
 
 	@Unique
@@ -85,6 +94,46 @@ public abstract class PetInventoryMixin implements PetHolder {
 	@Unique
 	private static String madokuCraft$slotLevelKey(int slot) {
 		return "MadokuPets." + slot + ".level";
+	}
+
+	@Unique
+	private static String madokuCraft$slotCountKey(int slot) {
+		return "MadokuPets." + slot + ".count";
+	}
+
+	@Unique
+	private static String madokuCraft$slotRarityKey(int slot) {
+		return "MadokuPets." + slot + ".rarity";
+	}
+
+	@Unique
+	private static void madokuCraft$restoreRarity(ItemStack stack, String rarityId) {
+		RarityAPIManager.Tier rarity = RarityAPIManager.fromString(rarityId);
+		if (rarity != null) {
+			RarityAPIManager.applyConfiguredRarity(stack, rarity);
+		}
+	}
+
+	@Unique
+	private void madokuCraft$restoreLegacyUpgradeItems(ValueInput input) {
+		if (!((Object) this instanceof ServerPlayer)) return;
+		Player player = (Player) (Object) this;
+		for (int slot = PetEntitiesAPIManager.SLOT_COUNT; slot < PetEntitiesAPIManager.SLOT_COUNT + 4; slot++) {
+			String itemId = input.getStringOr(madokuCraft$slotKey(slot), "");
+			if (itemId.isBlank()) continue;
+
+			Identifier identifier = Identifier.tryParse(JSONAPIManager.normalizeRegistryIdentifierForLookup(itemId));
+			Item item = identifier == null ? null : BuiltInRegistries.ITEM.getValue(identifier);
+			if (item == null) continue;
+
+			ItemStack stack = new ItemStack(item, Math.max(1, input.getIntOr(madokuCraft$slotCountKey(slot), 1)));
+			if (PetEntitiesAPIManager.isValid(stack)) {
+				PetEntitiesAPIManager.setPetLevel(stack, input.getIntOr(madokuCraft$slotLevelKey(slot), 1));
+				madokuCraft$restoreRarity(stack, input.getStringOr(madokuCraft$slotRarityKey(slot), ""));
+				PetHagAPIManager.applyLore(stack);
+			}
+			player.getInventory().placeItemBackInInventory(stack, Prediction.SERVER_ONLY);
+		}
 	}
 
 	@Unique

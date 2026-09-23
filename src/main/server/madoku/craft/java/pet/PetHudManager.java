@@ -1,6 +1,8 @@
 package madoku.craft.java.pet;
 
 import madoku.craft.java.core.sync.SyncPlayerAPIManager;
+import madoku.craft.java.pet.PetComponentsAPIManager.PetHolder;
+import madoku.craft.java.pet.PetComponentsAPIManager.PetInventory;
 import madoku.craft.java.pet.PetConfigManager.PetRule;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;
@@ -44,8 +46,22 @@ public final class PetHudManager {
 		DIRTY_PLAYERS.clear();
 		for (UUID playerId : dirtyPlayers) {
 			ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-			if (player != null) sendAbilityCooldowns(player, PetAbilitiesManager.currentAbilityCooldowns(player));
+			if (player != null) {
+				sendPetInventory(player);
+				sendAbilityCooldowns(player, PetAbilitiesManager.currentAbilityCooldowns(player));
+			}
 		}
+	}
+
+	private static void sendPetInventory(ServerPlayer player) {
+		if (!(player instanceof PetHolder holder)) return;
+		PetInventory inventory = holder.madokuCraft$getPetInventory();
+		if (inventory == null) return;
+		List<ItemStack> slots = new ArrayList<>(inventory.getContainerSize());
+		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+			slots.add(inventory.getItem(slot).copy());
+		}
+		SyncPlayerAPIManager.send(player, new PetPayloadAPIManager.PetInventoryPayload(slots));
 	}
 
 	public static void applyAbilityLore(ItemStack stack) {

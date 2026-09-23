@@ -77,7 +77,7 @@ public final class PetComponentsManager {
 			return 0;
 		}
 		int count = 0;
-		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+		for (int slot = 0; slot < Math.min(PetEntitiesManager.SLOT_COUNT, inventory.getContainerSize()); slot++) {
 			if (PetConfigManager.isValidPet(inventory.getItem(slot))) {
 				count++;
 			}
