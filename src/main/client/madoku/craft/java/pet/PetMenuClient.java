@@ -19,8 +19,8 @@ public final class PetMenuClient {
 		MenuAPIManager.registerEntry(new MenuEntry(
 			"pets",
 			"menu.madoku-craft.pets",
-			texture("main-menu/pets-button.png"),
-			texture("main-menu/pets-button-highlighted.png"),
+			texture("madoku-menu/main-menu/pets-button.png"),
+			texture("madoku-menu/main-menu/pets-button-highlighted.png"),
 			50,
 			client -> {
 				if (client != null && client.player != null) ClientPlayNetworking.send(new OpenPetMenuPayload());

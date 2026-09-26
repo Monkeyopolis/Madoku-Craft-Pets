@@ -31,6 +31,11 @@ public final class PetConfigManager {
 	public static final String PET_FOLDER = "madoku-craft-pets";
 	public static final String ENTITY_FOLDER = "madoku-entities";
 	public static final String ABILITY_FOLDER = "madoku-abilities";
+	static final String ABILITY_TYPE_SHARED = "shared";
+	static final String ABILITY_TYPE_STANDALONE = "standalone";
+	static final String ABILITY_RANGE_SHORT = "short";
+	static final String ABILITY_RANGE_MEDIUM = "medium";
+	static final String ABILITY_RANGE_LONG = "long";
 
 	private PetConfigManager() {
 	}
@@ -109,6 +114,68 @@ public final class PetConfigManager {
 
 	static String abilityConfigId(String value) {
 		return normalizeAbilityId(value).replace('_', '-');
+	}
+
+	static String normalizeAbilityType(String value, String fallback) {
+		String normalized = normalizeKey(value).replace('_', '-');
+		if (ABILITY_TYPE_SHARED.equals(normalized) || ABILITY_TYPE_STANDALONE.equals(normalized)) {
+			return normalized;
+		}
+		return fallback;
+	}
+
+	static boolean normalizeDuplicateLevelScaling(String value, boolean fallback) {
+		String normalized = normalizeKey(value).replace('_', '-');
+		return switch (normalized) {
+			case "true" -> true;
+			case "false" -> false;
+			default -> fallback;
+		};
+	}
+
+	static String defaultAbilityType(String abilityType) {
+		String normalized = normalizeAbilityId(abilityType);
+		return switch (normalized) {
+			case MadokuPetManager.PET_ABILITY_WEB_PROJECTILE,
+				MadokuPetManager.PET_ABILITY_EGG_PROJECTILE,
+				MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION,
+				MadokuPetManager.PET_ABILITY_MOB_SCAN -> ABILITY_TYPE_SHARED;
+			default -> ABILITY_TYPE_STANDALONE;
+		};
+	}
+
+	static boolean defaultDuplicateLevelScaling(String abilityType) {
+		return false;
+	}
+
+	static String normalizeAbilityRange(String value, String fallback) {
+		String normalized = normalizeKey(value).replace('_', '-');
+		return switch (normalized) {
+			case ABILITY_RANGE_SHORT, ABILITY_RANGE_MEDIUM, ABILITY_RANGE_LONG -> normalized;
+			default -> fallback;
+		};
+	}
+
+	static String defaultAbilityRange(String abilityType) {
+		return ABILITY_RANGE_MEDIUM;
+	}
+
+	static boolean isProjectileAbility(String abilityType) {
+		return switch (normalizeAbilityId(abilityType)) {
+			case MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW,
+				MadokuPetManager.PET_ABILITY_WEB_PROJECTILE,
+				MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE,
+				MadokuPetManager.PET_ABILITY_EGG_PROJECTILE -> true;
+			default -> false;
+		};
+	}
+
+	static double abilityRangeBlocks(String abilityRange) {
+		return switch (normalizeAbilityRange(abilityRange, ABILITY_RANGE_MEDIUM)) {
+			case ABILITY_RANGE_SHORT -> 8.0D;
+			case ABILITY_RANGE_LONG -> 24.0D;
+			default -> 16.0D;
+		};
 	}
 
 	static String petItemPath(String petId) {
@@ -323,6 +390,23 @@ public final class PetConfigManager {
 		try { return source.get(key).getAsString(); } catch (RuntimeException exception) { return fallback; }
 	}
 
+	static String getAbilitySetting(JsonObject source, String key, String fallback) {
+		if (source == null || key == null || !source.has(key)) return fallback;
+		JsonElement value = source.get(key);
+		if (value != null && value.isJsonPrimitive()) {
+			try { return value.getAsString(); } catch (RuntimeException exception) { return fallback; }
+		}
+		if (value == null || !value.isJsonObject()) return fallback;
+		JsonObject group = value.getAsJsonObject();
+		String configured = getString(group, "type", "");
+		if (configured.isBlank()) configured = getString(group, "mode", "");
+		if (configured.isBlank()) configured = getString(group, "value", "");
+		if (configured.isBlank() && group.has("enabled")) {
+			configured = getBoolean(group, "enabled", true) ? "true" : "false";
+		}
+		return configured.isBlank() ? fallback : configured;
+	}
+
 	static long getLong(JsonObject source, String key, long fallback) {
 		if (source == null || key == null || !source.has(key) || !source.get(key).isJsonPrimitive()) return fallback;
 		try { return source.get(key).getAsLong(); } catch (RuntimeException exception) { return fallback; }
@@ -399,6 +483,9 @@ public final class PetConfigManager {
 
 	static final class PetAbilityRule {
 		final String abilityType;
+		final String abilityExecutionType;
+		final boolean duplicateLevelScaling;
+		final String abilityRange;
 		final float soundVolumeMultiplier;
 		final float attackDamage;
 		final float attackSpeed;
@@ -429,6 +516,9 @@ public final class PetConfigManager {
 
 		PetAbilityRule(
 			String abilityType,
+			String abilityExecutionType,
+			boolean duplicateLevelScaling,
+			String abilityRange,
 			float soundVolumeMultiplier,
 			float attackDamage,
 			float attackSpeed,
@@ -458,6 +548,12 @@ public final class PetConfigManager {
 			String soundEventId
 		) {
 			this.abilityType = normalizeAbilityId(abilityType);
+			this.abilityExecutionType = normalizeAbilityType(abilityExecutionType, defaultAbilityType(this.abilityType));
+			this.duplicateLevelScaling = normalizeDuplicateLevelScaling(
+				Boolean.toString(duplicateLevelScaling),
+				defaultDuplicateLevelScaling(this.abilityType)
+			);
+			this.abilityRange = normalizeAbilityRange(abilityRange, defaultAbilityRange(this.abilityType));
 			this.soundVolumeMultiplier = soundVolumeMultiplier;
 			this.attackDamage = attackDamage;
 			this.attackSpeed = attackSpeed;
@@ -487,6 +583,10 @@ public final class PetConfigManager {
 			this.soundEventId = soundEventId;
 		}
 
+		boolean isShared() {
+			return ABILITY_TYPE_SHARED.equals(abilityExecutionType);
+		}
+
 		boolean canPerformReactiveAttack() {
 			if (attackSpeed <= 0.0F || cooldownTicks <= 0L) return false;
 			if (MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType)) return attackDamage > 0.0F;
@@ -501,7 +601,7 @@ public final class PetConfigManager {
 			double resolvedProjectileCount = projectileCount;
 			double resolvedMobScanVulnerability = mobScanVulnerabilityAmount;
 			if (MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(abilityType)) {
-				resolvedMobScanVulnerability += (Math.max(1, level) - 1) * 0.025D;
+			resolvedMobScanVulnerability += (Math.max(1, level) - 1) * 0.0125D;
 			}
 			double resolvedPlayerDamageBonus = playerDamageBonusAmount;
 			if (MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType)) {
@@ -564,10 +664,13 @@ public final class PetConfigManager {
 				resolvedProjectileCount = projectileCount + (levelDelta * 0.125D);
 			} else if ("minecraft:bee".equals(normalizedPetId)
 				&& MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(abilityType)) {
-				resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 0.2D);
+				resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 0.25D);
 			}
 			return new PetAbilityRule(
 				abilityType,
+				abilityExecutionType,
+				duplicateLevelScaling,
+				abilityRange,
 				soundVolumeMultiplier,
 				(float) resolvedAttackDamage,
 				attackSpeed,
@@ -601,6 +704,9 @@ public final class PetConfigManager {
 		PetAbilityRule withoutCooldown() {
 			return new PetAbilityRule(
 				abilityType,
+				abilityExecutionType,
+				duplicateLevelScaling,
+				abilityRange,
 				soundVolumeMultiplier,
 				attackDamage,
 				attackSpeed,
@@ -797,7 +903,12 @@ public final class PetConfigManager {
 				boolean usesBeeSwarm = MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(resolvedAbilityType);
 				JsonObject ability = madoku.craft.java.core.json.JSONFormatAPIManager.object()
 					.put("id", abilityConfigId(resolvedAbilityType))
+					.put("ability-type", defaultAbilityType(resolvedAbilityType))
+					.put("duplicate-level-scaling", defaultDuplicateLevelScaling(resolvedAbilityType))
 					.build();
+				if (isProjectileAbility(resolvedAbilityType)) {
+					ability.addProperty("ability-range", defaultAbilityRange(resolvedAbilityType));
+				}
 				if (usesRangedHomingArrow) {
 					ability.addProperty("attack-damage", 3.0D);
 					ability.addProperty("attack-speed", 3.0D);
@@ -858,7 +969,7 @@ public final class PetConfigManager {
 					ability.addProperty("follow-speed", 1.5D);
 					ability.addProperty("idle-move-speed", 1.25D);
 					ability.addProperty("idle-wander-radius", 4.0D);
-					ability.addProperty("attack-damage", 1.6D);
+					ability.addProperty("attack-damage", 1.0D);
 					ability.addProperty("cooldown", 0.0D);
 				}
 				if (MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(resolvedAbilityType)) {
@@ -1013,6 +1124,22 @@ public final class PetConfigManager {
 					JsonObject resolvedSource = resolveAbilitySource(source, abilityGroup, abilityType);
 					abilities.add(new PetAbilityRule(
 						abilityType,
+						normalizeAbilityType(
+							getAbilitySetting(resolvedSource, "ability-type", defaultAbilityType(abilityType)),
+							defaultAbilityType(abilityType)
+						),
+						normalizeDuplicateLevelScaling(
+							getAbilitySetting(
+								resolvedSource,
+								"duplicate-level-scaling",
+								Boolean.toString(defaultDuplicateLevelScaling(abilityType))
+							),
+							defaultDuplicateLevelScaling(abilityType)
+						),
+						normalizeAbilityRange(
+							getAbilitySetting(resolvedSource, "ability-range", defaultAbilityRange(abilityType)),
+							defaultAbilityRange(abilityType)
+						),
 						(float) PetSettings.clampDouble(getDouble(resolvedSource, "sound-volume-multiplier", 0.2D), 0.0D, 4.0D),
 						(float) PetSettings.clampDouble(getDouble(resolvedSource, "attack-damage", 0.0D), 0.0D, 1024.0D),
 						(float) PetSettings.clampDouble(getDouble(resolvedSource, "attack-speed", 0.0D), 0.05D, 8.0D),
@@ -1035,7 +1162,7 @@ public final class PetConfigManager {
 						PetSettings.clampDouble(getDouble(
 							resolvedSource,
 							"mob-scan-vulnerability",
-							MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(abilityType) ? 0.05D : 0.0D
+				MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(abilityType) ? 0.15D : 0.0D
 						), 0.0D, 10.0D),
 						PetSettings.clampDouble(getDouble(resolvedSource, "player-damage-bonus", 0.0D), 0.0D, 1024.0D),
 						PetSettings.clampDouble(getDouble(resolvedSource, "fall-damage-reduction", 0.0D), 0.0D, 1.0D),

@@ -3,6 +3,8 @@ package madoku.craft.java.pet;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetHolder;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetInventory;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetSlot;
+import madoku.craft.java.core.rarity.RarityAPIManager;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Prediction;
 import net.minecraft.world.SimpleContainer;
@@ -13,9 +15,11 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.resources.Identifier;
 
 /** Dedicated synchronized menu for pet equipment and pet upgrades. */
 public final class PetMenu extends AbstractContainerMenu {
+	private static final Identifier ESSENCE_ID = Identifier.fromNamespaceAndPath("madoku-craft", "essence");
 	public static final int PET_SLOT_START = 0;
 	public static final int UPGRADE_SLOT_START = PET_SLOT_START + PetEntitiesAPIManager.SLOT_COUNT;
 	public static final int UPGRADE_SLOT_COUNT = 4;
@@ -57,11 +61,12 @@ public final class PetMenu extends AbstractContainerMenu {
 
 		int level = PetEntitiesAPIManager.petLevel(target);
 		UpgradeRequirement petItems = new UpgradeRequirement(countPetItems(target.getItem()), level);
-		UpgradeRequirement experienceBottles = new UpgradeRequirement(countItems(Items.EXPERIENCE_BOTTLE), powerOfTwo(level));
-		UpgradeRequirement emeralds = new UpgradeRequirement(countItems(Items.EMERALD), powerOfTwo(level + 1));
+		int experienceCost = experienceBottleCost(target, level);
+		UpgradeRequirement experienceBottles = new UpgradeRequirement(countItems(Items.EXPERIENCE_BOTTLE), experienceCost);
+		UpgradeRequirement essence = new UpgradeRequirement(countItems(essenceItem()), experienceCost * 2);
 		boolean belowMaximum = level < PetAPIManager.maxPetLevel();
-		boolean canUpgrade = belowMaximum && petItems.isMet() && experienceBottles.isMet() && emeralds.isMet();
-		return new UpgradeRequirements(true, canUpgrade, petItems, experienceBottles, emeralds);
+		boolean canUpgrade = belowMaximum && petItems.isMet() && experienceBottles.isMet() && essence.isMet();
+		return new UpgradeRequirements(true, canUpgrade, petItems, experienceBottles, essence);
 	}
 
 	/** Applies an upgrade on the server after rechecking all costs against the active player's inventory. */
@@ -75,7 +80,7 @@ public final class PetMenu extends AbstractContainerMenu {
 		int nextLevel = PetEntitiesAPIManager.petLevel(target) + 1;
 		consumePetItems(target.getItem(), requirements.petItems().required());
 		consumeItems(Items.EXPERIENCE_BOTTLE, requirements.experienceBottles().required());
-		consumeItems(Items.EMERALD, requirements.emeralds().required());
+		consumeItems(essenceItem(), requirements.essence().required());
 		PetEntitiesAPIManager.setPetLevel(target, nextLevel);
 		PetHudManager.applySupportedPetLore(target);
 		upgradeInventory.setChanged();
@@ -181,8 +186,27 @@ public final class PetMenu extends AbstractContainerMenu {
 		}
 	}
 
-	private static int powerOfTwo(int exponent) {
-		return exponent >= 31 ? Integer.MAX_VALUE : 1 << Math.max(0, exponent);
+	static Item essenceItem() {
+		return BuiltInRegistries.ITEM.getValue(ESSENCE_ID);
+	}
+
+	private static int experienceBottleCost(ItemStack target, int level) {
+		return rarityExperienceStep(target) * Math.max(1, level);
+	}
+
+	private static int rarityExperienceStep(ItemStack target) {
+		RarityAPIManager.Tier rarity = RarityAPIManager.detectAppliedRarity(target);
+		if (rarity == null) {
+			rarity = RarityAPIManager.fromString(PetHagAPIManager.rarity(target));
+		}
+		if (rarity == null) rarity = RarityAPIManager.Tier.COMMON;
+		return switch (rarity) {
+			case COMMON -> 2;
+			case RARE -> 4;
+			case EPIC -> 6;
+			case LEGENDARY -> 8;
+			case MYTHIC -> 10;
+		};
 	}
 
 	public record UpgradeRequirement(int owned, int required) {
@@ -195,7 +219,7 @@ public final class PetMenu extends AbstractContainerMenu {
 		boolean canUpgrade,
 		UpgradeRequirement petItems,
 		UpgradeRequirement experienceBottles,
-		UpgradeRequirement emeralds
+		UpgradeRequirement essence
 	) {
 		private static UpgradeRequirements empty() {
 			UpgradeRequirement emptyRequirement = new UpgradeRequirement(0, 0);

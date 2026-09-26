@@ -16,12 +16,12 @@ import net.minecraft.world.item.Items;
 
 /** Dedicated screen for pet equipment and upgrade inputs. */
 public final class PetMenuScreen extends AbstractContainerScreen<PetMenu> {
-	private static final Identifier CONTAINER_TEXTURE = texture("pets-menu/pet-menu-container.png");
-	private static final Identifier PET_SLOT_TEXTURE = texture("icons/pet-slot.png");
+	private static final Identifier CONTAINER_TEXTURE = texture("madoku-menu/pet-menu-container.png");
+	private static final Identifier PET_SLOT_TEXTURE = texture("shared-ui/pet-slot.png");
 	private static final Identifier BOTTLE_SLOT_TEXTURE = texture("shared-ui/bottle-slot.png");
-	private static final Identifier EMERALD_SLOT_TEXTURE = texture("shared-ui/emerald-slot.png");
-	private static final Identifier UPGRADE_TEXTURE = texture("pets-menu/upgrade-button.png");
-	private static final Identifier UPGRADE_HIGHLIGHTED_TEXTURE = texture("pets-menu/upgrade-button-highlighted.png");
+	private static final Identifier ESSENCE_SLOT_TEXTURE = texture("shared-ui/essence-slot.png");
+	private static final Identifier UPGRADE_TEXTURE = texture("shared-ui/upgrade-button.png");
+	private static final Identifier UPGRADE_HIGHLIGHTED_TEXTURE = texture("shared-ui/upgrade-button-highlighted.png");
 	private static final Identifier EXIT_TEXTURE = texture("shared-ui/exit-button.png");
 	private static final Identifier EXIT_HIGHLIGHTED_TEXTURE = texture("shared-ui/exit-button-highlighted.png");
 	private static final int PANEL_WIDTH = 176;
@@ -135,12 +135,12 @@ public final class PetMenuScreen extends AbstractContainerScreen<PetMenu> {
 	private void drawUpgradeRequirements(GuiGraphicsExtractor graphics, PetMenu.UpgradeRequirements requirements) {
 		int petX = 69;
 		int bottleX = 95;
-		int emeraldX = 121;
+		int essenceX = 121;
 		int slotY = 74;
 		if (!requirements.hasTarget()) {
 			blitSlotIcon(graphics, PET_SLOT_TEXTURE, petX, slotY);
 			blitSlotIcon(graphics, BOTTLE_SLOT_TEXTURE, bottleX - 1, slotY - 1);
-			blitSlotIcon(graphics, EMERALD_SLOT_TEXTURE, emeraldX, slotY);
+			blitSlotIcon(graphics, ESSENCE_SLOT_TEXTURE, essenceX, slotY);
 			return;
 		}
 
@@ -148,7 +148,7 @@ public final class PetMenuScreen extends AbstractContainerScreen<PetMenu> {
 		PetEntitiesAPIManager.setPetLevel(targetPet, 1);
 		drawRequirement(graphics, targetPet, requirements.petItems(), petX, slotY);
 		drawRequirement(graphics, new ItemStack(Items.EXPERIENCE_BOTTLE), requirements.experienceBottles(), bottleX, slotY);
-		drawRequirement(graphics, new ItemStack(Items.EMERALD), requirements.emeralds(), emeraldX, slotY);
+		drawRequirement(graphics, new ItemStack(PetMenu.essenceItem()), requirements.essence(), essenceX, slotY);
 	}
 
 	private void drawRequirement(
