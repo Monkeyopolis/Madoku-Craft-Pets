@@ -65,26 +65,26 @@ public final class PetAbilitiesManager {
 	private static final String PET_ABILITY_HEALTH_REGENERATION = MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION;
 	private static final String PET_ABILITY_MOB_SCAN = MadokuPetManager.PET_ABILITY_MOB_SCAN;
 	private static final String PET_ABILITY_BEE_SWARM = MadokuPetManager.PET_ABILITY_BEE_SWARM;
-	private static final int WEB_PROJECTILE_LIFETIME_TICKS = 20;
 	private static final int WEB_PROJECTILE_BASE_RICOCHETS = 3;
 	private static final double WEB_PROJECTILE_RICOCHET_RADIUS = 5.0D;
-	private static final double WEB_PROJECTILE_RICOCHET_RADIUS_PER_LEVEL = 0.25D;
+	private static final double WEB_PROJECTILE_RICOCHET_RADIUS_PER_LEVEL = 0.5D;
 	private static final double WEB_PROJECTILE_RICOCHET_RADIUS_PER_DUPLICATE = 1.0D;
-	private static final double WEB_PROJECTILE_RICOCHETS_PER_LEVEL = 0.25D;
+	private static final double WEB_PROJECTILE_RICOCHETS_PER_LEVEL = 0.5D;
 	private static final int WEB_PROJECTILE_DUPLICATE_DAMAGE = 1;
 	private static final int WEB_PROJECTILE_DUPLICATE_STUN_TICKS = 10;
-	private static final long WEB_PROJECTILE_DUPLICATE_SLOW_DURATION_TICKS = 2L * 20L;
-	private static final long HEALTH_REGEN_DUPLICATE_DURATION_TICKS = 20L;
+	private static final long WEB_PROJECTILE_DUPLICATE_SLOW_DURATION_TICKS = 15L;
+	private static final double WEB_PROJECTILE_DUPLICATE_SLOW_PERCENTAGE = 0.05D;
+	private static final double HEALTH_REGEN_DUPLICATE_HEAL_PERCENTAGE = 0.02D;
 	private static final long HEALTH_REGEN_TICK_INTERVAL_TICKS = 20L;
 	private static final double WEB_PROJECTILE_HIT_DISTANCE = 0.75D;
 	private static final double WEB_PROJECTILE_MIN_SPEED = 0.20D;
-	private static final int EXPLOSIVE_PROJECTILE_LIFETIME_TICKS = 20;
 	private static final double EXPLOSIVE_PROJECTILE_HIT_DISTANCE = 1.0D;
 	private static final double EXPLOSIVE_PROJECTILE_MIN_SPEED = 0.5D;
-	private static final long EGG_ABILITY_COOLDOWN_TICKS = 15L * 20L;
-	private static final int EGG_PROJECTILE_LIFETIME_TICKS = 100;
+	private static final double EGG_PROJECTILE_DUPLICATE_DAMAGE = 1.0D;
+	private static final double EGG_PROJECTILE_DUPLICATE_COUNT = 0.5D;
+	private static final double EGG_PROJECTILE_DUPLICATE_RADIUS = 0.25D;
 	private static final double FALL_DAMAGE_REDUCTION_BASE = 0.30D;
-	private static final double FALL_DAMAGE_REDUCTION_PER_DUPLICATE = 0.10D;
+	private static final double FALL_DAMAGE_REDUCTION_PER_DUPLICATE = 0.05D;
 	private static final int BAT_SCAN_BASE_RADIUS_BLOCKS = 24;
 	private static final int BAT_SCAN_HORIZONTAL_RADIUS_PER_LEVEL_BLOCKS = 2;
 	private static final int BAT_SCAN_HORIZONTAL_RADIUS_PER_DUPLICATE_BLOCKS = 4;
@@ -94,9 +94,9 @@ public final class PetAbilitiesManager {
 	private static final long BAT_SCAN_BASE_GLOWING_DURATION_TICKS = 60L * 20L;
 	private static final long BAT_SCAN_GLOWING_DURATION_PER_LEVEL_TICKS = 25L;
 	private static final long MOB_SCAN_GLOWING_DURATION_PER_DUPLICATE_ABILITY_TICKS = 50L;
-	private static final float BAT_SCAN_VULNERABILITY_PER_LEVEL = 0.0125F;
-	private static final float BAT_SCAN_BASE_VULNERABILITY = 0.15F;
-	private static final float MOB_SCAN_VULNERABILITY_PER_DUPLICATE_ABILITY = 0.025F;
+	private static final float BAT_SCAN_VULNERABILITY_PER_LEVEL = 0.025F;
+	private static final float BAT_SCAN_BASE_VULNERABILITY = 0.10F;
+	private static final float MOB_SCAN_VULNERABILITY_PER_DUPLICATE_ABILITY = 0.05F;
 	private static final String MOB_SCAN_VULNERABILITY_TAG = "madoku-craft.mob-scan-vulnerability";
 	private static final long MOB_SCAN_COOLDOWN_REDUCTION_PER_DUPLICATE_ABILITY = 5L * 20L;
 	private static final long BAT_SCAN_COOLDOWN_REDUCTION_PER_LEVEL = 2L * 20L + 10L;
@@ -441,6 +441,8 @@ public final class PetAbilitiesManager {
 		float radius = 0.0F;
 		double configuredProjectileCount = 0.0D;
 		long configuredProjectileIntervalTicks = 0L;
+		long configuredLifetimeTicks = 0L;
+		long configuredCooldownTicks = 0L;
 		boolean hasReadyProjectile = false;
 		double leftClickRange = 0.0D;
 		int[] eggAbilitySlots = new int[SLOT_COUNT];
@@ -469,6 +471,8 @@ public final class PetAbilitiesManager {
 			radius = Math.max(radius, eggAbility.explosionRadius);
 			configuredProjectileCount = Math.max(configuredProjectileCount, eggAbility.projectileCount);
 			configuredProjectileIntervalTicks = Math.max(configuredProjectileIntervalTicks, eggAbility.projectileIntervalTicks);
+			configuredLifetimeTicks = Math.max(configuredLifetimeTicks, eggAbility.lifetimeTicks);
+			configuredCooldownTicks = Math.max(configuredCooldownTicks, eggAbility.cooldownTicks);
 		}
 		if (eggAbilityCount <= 0 && !hasReadyProjectile) {
 			return;
@@ -486,6 +490,8 @@ public final class PetAbilitiesManager {
 				radius = duplicateLevelEggAbility.explosionRadius;
 				configuredProjectileCount = duplicateLevelEggAbility.projectileCount;
 				configuredProjectileIntervalTicks = duplicateLevelEggAbility.projectileIntervalTicks;
+				configuredLifetimeTicks = duplicateLevelEggAbility.lifetimeTicks;
+				configuredCooldownTicks = duplicateLevelEggAbility.cooldownTicks;
 			}
 		}
 		LivingEntity target = hasReadyProjectile ? resolveLeftClickTarget(player, leftClickRange) : null;
@@ -494,11 +500,12 @@ public final class PetAbilitiesManager {
 			|| ACTIVE_CHICKEN_EGG_VOLLEYS.containsKey(player.getUUID())) {
 		} else {
 			Vec3 targetPosition = player.getEyePosition().add(player.getLookAngle().scale(32.0D));
-			configuredProjectileCount += Math.max(0, eggAbilityCount - 1);
+			configuredProjectileCount += Math.max(0, eggAbilityCount - 1) * EGG_PROJECTILE_DUPLICATE_COUNT;
 			int projectileCount = resolveProjectileCount(player, configuredProjectileCount);
 			damage = Math.max(0.0F, damage);
-			damage += Math.max(0, eggAbilityCount - 1);
+			damage += (float) (Math.max(0, eggAbilityCount - 1) * EGG_PROJECTILE_DUPLICATE_DAMAGE);
 			radius = Math.max(0.5F, radius);
+			radius += (float) (Math.max(0, eggAbilityCount - 1) * EGG_PROJECTILE_DUPLICATE_RADIUS);
 			if (damage > 0.0F && radius > 0.0F) {
 				ACTIVE_CHICKEN_EGG_VOLLEYS.put(
 					player.getUUID(),
@@ -510,11 +517,12 @@ public final class PetAbilitiesManager {
 						now,
 						damage,
 						radius,
+						configuredLifetimeTicks,
 						configuredProjectileIntervalTicks
 					)
 				);
 				for (int index = 0; index < eggAbilityCount; index++) {
-					setAbilityCooldown(player.getUUID(), eggAbilitySlots[index], PET_ABILITY_EGG_PROJECTILE, now + EGG_ABILITY_COOLDOWN_TICKS);
+					setAbilityCooldown(player.getUUID(), eggAbilitySlots[index], PET_ABILITY_EGG_PROJECTILE, now + configuredCooldownTicks);
 				}
 			}
 		}
@@ -591,13 +599,13 @@ public final class PetAbilitiesManager {
 					healthSlots[healthSlotCount++] = slot;
 				}
 				sharedCooldownTicks = Math.max(sharedCooldownTicks, ability.cooldownTicks);
-				healPercentage += Math.max(0.0D, baseAbility.healthRegenerationAmount);
 				durationTicks = Math.max(durationTicks, Math.max(0L, baseAbility.effectDurationTicks));
 			}
 		}
 		if (abilityCount <= 0) {
 			return;
 		}
+		healPercentage = baseHealthAbility == null ? 0.0D : Math.max(0.0D, baseHealthAbility.healthRegenerationAmount);
 		long sharedCooldownTick = synchronizeSharedAbilityCooldown(
 			player.getUUID(),
 			PET_ABILITY_HEALTH_REGENERATION,
@@ -614,9 +622,8 @@ public final class PetAbilitiesManager {
 			: baseHealthAbility.atLevel(duplicateLevel, baseHealthRule.petId);
 		if (duplicateLevelAbility != null) {
 			healPercentage += Math.max(0.0D, duplicateLevelAbility.healthRegenerationAmount - baseHealthAbility.healthRegenerationAmount);
-			durationTicks += Math.max(0L, duplicateLevelAbility.effectDurationTicks - baseHealthAbility.effectDurationTicks);
 		}
-		durationTicks += (long) (abilityCount - 1) * HEALTH_REGEN_DUPLICATE_DURATION_TICKS;
+		healPercentage += Math.max(0, abilityCount - 1) * HEALTH_REGEN_DUPLICATE_HEAL_PERCENTAGE;
 		if (healPercentage <= 0.0D || durationTicks <= 0L) {
 			return;
 		}
@@ -977,7 +984,8 @@ public final class PetAbilitiesManager {
 				target,
 				projectileSpawnPosition,
 				state.ability.attackSpeed,
-				state.ability.attackDamage
+				state.ability.attackDamage,
+				state.ability.lifetimeTicks
 			);
 		}
 		if (PET_ABILITY_WEB_PROJECTILE.equals(state.abilityType)) {
@@ -1171,9 +1179,7 @@ public final class PetAbilitiesManager {
 		if (ability == null) {
 			return 0L;
 		}
-		// shot-delay-ticks is the explicit duplicate-pet delay. Fall back to the
-		// projectile interval so older/custom configs still get staggered shots.
-		return Math.max(0L, ability.shotDelayTicks > 0L ? ability.shotDelayTicks : ability.projectileIntervalTicks);
+		return Math.max(0L, ability.projectileIntervalTicks);
 	}
 
 	private static long safeAddTicks(long first, long second) {
@@ -2087,12 +2093,12 @@ public final class PetAbilitiesManager {
 					(int) Math.max(0L, ability.effectDurationTicks),
 					stunDurationTicks,
 					(int) Math.max(0L, ability.slowDurationTicks + (duplicateCount * WEB_PROJECTILE_DUPLICATE_SLOW_DURATION_TICKS)),
-					(float) Math.max(0.0D, Math.min(1.0D, ability.slowPercentage)),
+					(float) Math.max(0.0D, Math.min(1.0D, ability.slowPercentage + (duplicateCount * WEB_PROJECTILE_DUPLICATE_SLOW_PERCENTAGE))),
 					false,
 					ricochetCount,
 					ricochetRadius,
 					Set.of(),
-					WEB_PROJECTILE_LIFETIME_TICKS
+					(int) Math.max(1L, ability.lifetimeTicks)
 				)
 			);
 			return true;
@@ -2153,7 +2159,7 @@ public final class PetAbilitiesManager {
 					Math.max(0.5F, ability.explosionRadius),
 					(float) Math.max(0.0D, ability.vulnerabilityAmount),
 					(int) Math.max(0L, ability.vulnerabilityDurationTicks),
-					EXPLOSIVE_PROJECTILE_LIFETIME_TICKS
+					(int) Math.max(1L, ability.lifetimeTicks)
 				)
 			);
 			return true;
@@ -2311,7 +2317,7 @@ public final class PetAbilitiesManager {
 				if (now < state.nextLaunchTick) {
 					continue;
 				}
-				spawnChickenEggProjectile(owner, state.targetPosition, state.damage, state.radius);
+				spawnChickenEggProjectile(owner, state.targetPosition, state.damage, state.radius, state.lifetimeTicks);
 				ACTIVE_CHICKEN_EGG_VOLLEYS.put(
 					ownerId,
 					new ChickenEggVolleyState(
@@ -2322,6 +2328,7 @@ public final class PetAbilitiesManager {
 						now + state.projectileIntervalTicks,
 						state.damage,
 						state.radius,
+						state.lifetimeTicks,
 						state.projectileIntervalTicks
 					)
 				);
@@ -2343,7 +2350,7 @@ public final class PetAbilitiesManager {
 			}
 		}
 
-		private static boolean spawnChickenEggProjectile(ServerPlayer owner, Vec3 targetPosition, float damage, float radius) {
+		private static boolean spawnChickenEggProjectile(ServerPlayer owner, Vec3 targetPosition, float damage, float radius, long lifetimeTicks) {
 			if (owner == null || targetPosition == null || !(owner.level() instanceof ServerLevel level)) {
 				return false;
 			}
@@ -2365,7 +2372,7 @@ public final class PetAbilitiesManager {
 					level.dimension().toString(),
 					damage,
 					radius,
-					TimeAPIManager.getGameplayTicks() + EGG_PROJECTILE_LIFETIME_TICKS
+					TimeAPIManager.getGameplayTicks() + Math.max(1L, lifetimeTicks)
 				)
 			);
 			level.playSound(null, start.x, start.y, start.z, SoundEvents.EGG_THROW, SoundSource.NEUTRAL, 0.5F, 1.0F);
@@ -3273,6 +3280,7 @@ public final class PetAbilitiesManager {
 		long nextLaunchTick,
 		float damage,
 		float radius,
+		long lifetimeTicks,
 		long projectileIntervalTicks
 	) {}
 

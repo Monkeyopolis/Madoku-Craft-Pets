@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** Applies the standalone Pets damage-block ability after vanilla armor absorption. */
+/** Applies the standalone reactive Pets damage-block ability after vanilla armor absorption. */
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityPetDamageMixin {
 	@Inject(method = "getDamageAfterArmorAbsorb", at = @At("RETURN"), cancellable = true)
