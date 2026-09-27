@@ -42,23 +42,47 @@ public final class PetPayloadAPIManager {
 		int slot0Cooldown0, int slot0Cooldown1, int slot0Cooldown2,
 		int slot1Cooldown0, int slot1Cooldown1, int slot1Cooldown2,
 		int slot2Cooldown0, int slot2Cooldown1, int slot2Cooldown2,
-		int slot3Cooldown0, int slot3Cooldown1, int slot3Cooldown2
+		int slot3Cooldown0, int slot3Cooldown1, int slot3Cooldown2,
+		int slot4Cooldown0, int slot4Cooldown1, int slot4Cooldown2
 	) implements CustomPacketPayload {
 		public static final Type<PetAbilityHudPayload> TYPE = new Type<>(Identifier.fromNamespaceAndPath("madoku-craft", "pet_ability_hud"));
-		public static final StreamCodec<RegistryFriendlyByteBuf, PetAbilityHudPayload> CODEC = StreamCodec.composite(
-			ByteBufCodecs.VAR_INT, PetAbilityHudPayload::slot0Cooldown0,
-			ByteBufCodecs.VAR_INT, PetAbilityHudPayload::slot0Cooldown1,
-			ByteBufCodecs.VAR_INT, PetAbilityHudPayload::slot0Cooldown2,
-			ByteBufCodecs.VAR_INT, PetAbilityHudPayload::slot1Cooldown0,
-			ByteBufCodecs.VAR_INT, PetAbilityHudPayload::slot1Cooldown1,
-			ByteBufCodecs.VAR_INT, PetAbilityHudPayload::slot1Cooldown2,
-			ByteBufCodecs.VAR_INT, PetAbilityHudPayload::slot2Cooldown0,
-			ByteBufCodecs.VAR_INT, PetAbilityHudPayload::slot2Cooldown1,
-			ByteBufCodecs.VAR_INT, PetAbilityHudPayload::slot2Cooldown2,
-			ByteBufCodecs.VAR_INT, PetAbilityHudPayload::slot3Cooldown0,
-			ByteBufCodecs.VAR_INT, PetAbilityHudPayload::slot3Cooldown1,
-			ByteBufCodecs.VAR_INT, PetAbilityHudPayload::slot3Cooldown2,
-			PetAbilityHudPayload::new
+		// StreamCodec.composite has a 14-field limit; five slots with three cooldowns
+		// each require a small explicit codec so slot 4 is not silently omitted.
+		public static final StreamCodec<RegistryFriendlyByteBuf, PetAbilityHudPayload> CODEC = StreamCodec.of(
+			(buffer, payload) -> {
+				ByteBufCodecs.VAR_INT.encode(buffer, payload.slot0Cooldown0());
+				ByteBufCodecs.VAR_INT.encode(buffer, payload.slot0Cooldown1());
+				ByteBufCodecs.VAR_INT.encode(buffer, payload.slot0Cooldown2());
+				ByteBufCodecs.VAR_INT.encode(buffer, payload.slot1Cooldown0());
+				ByteBufCodecs.VAR_INT.encode(buffer, payload.slot1Cooldown1());
+				ByteBufCodecs.VAR_INT.encode(buffer, payload.slot1Cooldown2());
+				ByteBufCodecs.VAR_INT.encode(buffer, payload.slot2Cooldown0());
+				ByteBufCodecs.VAR_INT.encode(buffer, payload.slot2Cooldown1());
+				ByteBufCodecs.VAR_INT.encode(buffer, payload.slot2Cooldown2());
+				ByteBufCodecs.VAR_INT.encode(buffer, payload.slot3Cooldown0());
+				ByteBufCodecs.VAR_INT.encode(buffer, payload.slot3Cooldown1());
+				ByteBufCodecs.VAR_INT.encode(buffer, payload.slot3Cooldown2());
+				ByteBufCodecs.VAR_INT.encode(buffer, payload.slot4Cooldown0());
+				ByteBufCodecs.VAR_INT.encode(buffer, payload.slot4Cooldown1());
+				ByteBufCodecs.VAR_INT.encode(buffer, payload.slot4Cooldown2());
+			},
+			buffer -> new PetAbilityHudPayload(
+				ByteBufCodecs.VAR_INT.decode(buffer),
+				ByteBufCodecs.VAR_INT.decode(buffer),
+				ByteBufCodecs.VAR_INT.decode(buffer),
+				ByteBufCodecs.VAR_INT.decode(buffer),
+				ByteBufCodecs.VAR_INT.decode(buffer),
+				ByteBufCodecs.VAR_INT.decode(buffer),
+				ByteBufCodecs.VAR_INT.decode(buffer),
+				ByteBufCodecs.VAR_INT.decode(buffer),
+				ByteBufCodecs.VAR_INT.decode(buffer),
+				ByteBufCodecs.VAR_INT.decode(buffer),
+				ByteBufCodecs.VAR_INT.decode(buffer),
+				ByteBufCodecs.VAR_INT.decode(buffer),
+				ByteBufCodecs.VAR_INT.decode(buffer),
+				ByteBufCodecs.VAR_INT.decode(buffer),
+				ByteBufCodecs.VAR_INT.decode(buffer)
+			)
 		);
 		public static PetAbilityHudPayload fromArray(int[] values) {
 			int[] safe = values == null ? new int[PetAPIManager.SLOT_COUNT * PetAPIManager.MAX_ABILITY_COOLDOWNS_PER_PET] : values;
@@ -66,7 +90,8 @@ public final class PetPayloadAPIManager {
 				valueAt(safe, 0), valueAt(safe, 1), valueAt(safe, 2),
 				valueAt(safe, 3), valueAt(safe, 4), valueAt(safe, 5),
 				valueAt(safe, 6), valueAt(safe, 7), valueAt(safe, 8),
-				valueAt(safe, 9), valueAt(safe, 10), valueAt(safe, 11)
+				valueAt(safe, 9), valueAt(safe, 10), valueAt(safe, 11),
+				valueAt(safe, 12), valueAt(safe, 13), valueAt(safe, 14)
 			);
 		}
 		public int[] asArray() {
@@ -74,7 +99,8 @@ public final class PetPayloadAPIManager {
 				slot0Cooldown0, slot0Cooldown1, slot0Cooldown2,
 				slot1Cooldown0, slot1Cooldown1, slot1Cooldown2,
 				slot2Cooldown0, slot2Cooldown1, slot2Cooldown2,
-				slot3Cooldown0, slot3Cooldown1, slot3Cooldown2
+				slot3Cooldown0, slot3Cooldown1, slot3Cooldown2,
+				slot4Cooldown0, slot4Cooldown1, slot4Cooldown2
 			};
 		}
 		@Override public Type<PetAbilityHudPayload> type() { return TYPE; }

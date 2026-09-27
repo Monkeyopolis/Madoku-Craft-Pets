@@ -83,7 +83,7 @@ public final class PetEntitiesManager {
 		if (itemsRegistered) return;
 		String[] petIds = {
 			"minecraft:bat", "minecraft:bee", "minecraft:chicken", "minecraft:cow", "minecraft:creeper",
-			"minecraft:pig", "minecraft:sheep", "minecraft:skeleton", "minecraft:spider", "minecraft:zombie"
+			"minecraft:goat", "minecraft:pig", "minecraft:sheep", "minecraft:skeleton", "minecraft:spider", "minecraft:zombie"
 		};
 		for (String petId : petIds) {
 			String itemPath = PetConfigManager.petItemPath(petId);
@@ -238,6 +238,7 @@ public final class PetEntitiesManager {
 				MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION
 			));
 			defaults.put("creeper", PetRule.defaultsForEntity("minecraft:creeper", MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE));
+			defaults.put("goat", PetRule.defaultsForEntity("minecraft:goat", MadokuPetManager.PET_ABILITY_GOAT_CHARGE));
 			defaults.put("pig", PetRule.defaultsForEntity("minecraft:pig", MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS));
 			defaults.put("sheep", PetRule.defaultsForEntity("minecraft:sheep", MadokuPetManager.PET_ABILITY_DAMAGE_REDUCTION));
 			defaults.put("skeleton", PetRule.defaultsForEntity("minecraft:skeleton", MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW));
@@ -528,8 +529,9 @@ public final class PetEntitiesManager {
 			if (pet != null) {
 				petIds[slot] = pet.getUUID();
 				ensurePetConfiguration(pet, rule, PetEntitiesManager.petLevel(stack));
-					boolean beeSwarmActive = rule.hasAbility(MadokuPetManager.PET_ABILITY_BEE_SWARM) && PetAbilitiesManager.isBeeSwarmActive(player.getUUID(), slot);
-				if (beeSwarmActive) {
+				boolean beeSwarmActive = rule.hasAbility(MadokuPetManager.PET_ABILITY_BEE_SWARM) && PetAbilitiesManager.isBeeSwarmActive(player.getUUID(), slot);
+				boolean goatChargeActive = PetAbilitiesManager.isGoatChargeActive(player.getUUID(), slot);
+				if (beeSwarmActive || goatChargeActive) {
 				nextDelay = Math.min(nextDelay, activeTickInterval(server));
 				} else {
 					nextDelay = Math.min(nextDelay, MovementController.updatePetPosition(

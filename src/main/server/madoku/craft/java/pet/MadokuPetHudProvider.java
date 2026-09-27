@@ -15,7 +15,13 @@ public final class MadokuPetHudProvider implements PetHudProvider {
 		if (rule == null || !rule.enabled) return List.of();
 		List<PetHudAPIManager.AbilityHudEntry> entries = new ArrayList<>();
 		for (PetConfigManager.PetAbilityRule ability : rule.abilities) {
-			entries.add(new PetHudAPIManager.AbilityHudEntry(ability.abilityType, ability.cooldownTicks));
+			entries.add(new PetHudAPIManager.AbilityHudEntry(
+				ability.abilityType,
+				ability.cooldownTicks,
+				ability.isShared(),
+				ability.isPassive(),
+				ability.isAutomatic()
+			));
 		}
 		return List.copyOf(entries);
 	}

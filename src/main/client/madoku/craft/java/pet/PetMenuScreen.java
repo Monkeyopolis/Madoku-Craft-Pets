@@ -12,7 +12,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 /** Dedicated screen for pet equipment and upgrade inputs. */
 public final class PetMenuScreen extends AbstractContainerScreen<PetMenu> {
@@ -144,17 +143,17 @@ public final class PetMenuScreen extends AbstractContainerScreen<PetMenu> {
 			return;
 		}
 
-		ItemStack targetPet = getMenu().slots.get(PetMenu.UPGRADE_SLOT_START).getItem().copy();
-		PetEntitiesAPIManager.setPetLevel(targetPet, 1);
-		drawRequirement(graphics, targetPet, requirements.petItems(), petX, slotY);
-		drawRequirement(graphics, new ItemStack(Items.EXPERIENCE_BOTTLE), requirements.experienceBottles(), bottleX, slotY);
-		drawRequirement(graphics, new ItemStack(PetMenu.essenceItem()), requirements.essence(), essenceX, slotY);
+		int[] ingredientX = { petX, bottleX, essenceX };
+		for (int index = 0; index < requirements.ingredients().size() && index < ingredientX.length; index++) {
+			PetMenu.IngredientRequirement requirement = requirements.ingredients().get(index);
+			drawRequirement(graphics, new ItemStack(requirement.ingredient().item()), requirement, ingredientX[index], slotY);
+		}
 	}
 
 	private void drawRequirement(
 		GuiGraphicsExtractor graphics,
 		ItemStack requiredItem,
-		PetMenu.UpgradeRequirement requirement,
+		PetMenu.IngredientRequirement requirement,
 		int slotX,
 		int slotY
 	) {

@@ -7,6 +7,7 @@ import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.animal.bee.AdultBeeModel;
 import net.minecraft.client.model.animal.chicken.AdultChickenModel;
 import net.minecraft.client.model.animal.cow.CowModel;
+import net.minecraft.client.model.animal.goat.GoatModel;
 import net.minecraft.client.model.animal.pig.PigModel;
 import net.minecraft.client.model.animal.sheep.SheepModel;
 import net.minecraft.client.model.animal.sheep.SheepFurModel;
@@ -23,6 +24,7 @@ import net.minecraft.client.renderer.entity.state.BatRenderState;
 import net.minecraft.client.renderer.entity.state.BeeRenderState;
 import net.minecraft.client.renderer.entity.state.ChickenRenderState;
 import net.minecraft.client.renderer.entity.state.CreeperRenderState;
+import net.minecraft.client.renderer.entity.state.GoatRenderState;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.client.renderer.entity.state.SheepRenderState;
 import net.minecraft.client.renderer.entity.state.SkeletonRenderState;
@@ -50,6 +52,7 @@ public final class PetRendererManager {
 		private static final Identifier CHICKEN_TEXTURE = texture("textures/entity/chicken/chicken_temperate.png");
 		private static final Identifier COW_TEXTURE = texture("textures/entity/cow/cow_temperate.png");
 		private static final Identifier CREEPER_TEXTURE = texture("textures/entity/creeper/creeper.png");
+		private static final Identifier GOAT_TEXTURE = texture("textures/entity/goat/goat.png");
 		private static final Identifier PIG_TEXTURE = texture("textures/entity/pig/pig_temperate.png");
 		private static final Identifier SHEEP_TEXTURE = texture("textures/entity/sheep/sheep.png");
 		private static final Identifier SKELETON_TEXTURE = texture("textures/entity/skeleton/skeleton.png");
@@ -61,21 +64,22 @@ public final class PetRendererManager {
 		MadokuPetRenderer(EntityRendererProvider.Context context) {
 			super(context);
 			this.shadowRadius = 0.35F;
-			this.profiles = Map.of(
-				"minecraft:bat", new BatProfile(new BatModel(context.bakeLayer(ModelLayers.BAT)), BAT_TEXTURE),
-				"minecraft:bee", new BeeProfile(new AdultBeeModel(context.bakeLayer(ModelLayers.BEE)), BEE_TEXTURE),
-				"minecraft:chicken", new ChickenProfile(new AdultChickenModel(context.bakeLayer(ModelLayers.CHICKEN)), CHICKEN_TEXTURE),
-				"minecraft:cow", new LivingProfile(new CowModel(context.bakeLayer(ModelLayers.COW)), COW_TEXTURE),
-				"minecraft:creeper", new CreeperProfile(new CreeperModel(context.bakeLayer(ModelLayers.CREEPER)), CREEPER_TEXTURE),
-				"minecraft:pig", new LivingProfile(new PigModel(context.bakeLayer(ModelLayers.PIG)), PIG_TEXTURE),
-				"minecraft:sheep", new SheepProfile(
+			this.profiles = Map.ofEntries(
+				Map.entry("minecraft:bat", new BatProfile(new BatModel(context.bakeLayer(ModelLayers.BAT)), BAT_TEXTURE)),
+				Map.entry("minecraft:bee", new BeeProfile(new AdultBeeModel(context.bakeLayer(ModelLayers.BEE)), BEE_TEXTURE)),
+				Map.entry("minecraft:chicken", new ChickenProfile(new AdultChickenModel(context.bakeLayer(ModelLayers.CHICKEN)), CHICKEN_TEXTURE)),
+				Map.entry("minecraft:cow", new LivingProfile(new CowModel(context.bakeLayer(ModelLayers.COW)), COW_TEXTURE)),
+				Map.entry("minecraft:creeper", new CreeperProfile(new CreeperModel(context.bakeLayer(ModelLayers.CREEPER)), CREEPER_TEXTURE)),
+				Map.entry("minecraft:goat", new GoatProfile(new GoatModel(context.bakeLayer(ModelLayers.GOAT)), GOAT_TEXTURE)),
+				Map.entry("minecraft:pig", new LivingProfile(new PigModel(context.bakeLayer(ModelLayers.PIG)), PIG_TEXTURE)),
+				Map.entry("minecraft:sheep", new SheepProfile(
 					new SheepModel(context.bakeLayer(ModelLayers.SHEEP)),
 					new SheepFurModel(context.bakeLayer(ModelLayers.SHEEP_WOOL)),
 					SHEEP_TEXTURE
-				),
-				"minecraft:skeleton", new SkeletonProfile(new SkeletonModel<>(context.bakeLayer(ModelLayers.SKELETON)), SKELETON_TEXTURE),
-				"minecraft:spider", new LivingProfile(new SpiderModel(context.bakeLayer(ModelLayers.SPIDER)), SPIDER_TEXTURE),
-				"minecraft:zombie", new ZombieProfile(new ZombieModel<>(context.bakeLayer(ModelLayers.ZOMBIE)), ZOMBIE_TEXTURE)
+				)),
+				Map.entry("minecraft:skeleton", new SkeletonProfile(new SkeletonModel<>(context.bakeLayer(ModelLayers.SKELETON)), SKELETON_TEXTURE)),
+				Map.entry("minecraft:spider", new LivingProfile(new SpiderModel(context.bakeLayer(ModelLayers.SPIDER)), SPIDER_TEXTURE)),
+				Map.entry("minecraft:zombie", new ZombieProfile(new ZombieModel<>(context.bakeLayer(ModelLayers.ZOMBIE)), ZOMBIE_TEXTURE))
 			);
 		}
 
@@ -223,6 +227,26 @@ public final class PetRendererManager {
 			CreeperRenderState state = copyLiving(source, new CreeperRenderState());
 			state.swelling = 0.0F;
 			state.isPowered = false;
+			model.setupAnim(state);
+			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
+		}
+	}
+
+	private static final class GoatProfile implements PetModelProfile {
+		private final GoatModel model;
+		private final Identifier texture;
+
+		private GoatProfile(GoatModel model, Identifier texture) {
+			this.model = model;
+			this.texture = texture;
+		}
+
+		@Override
+		public void render(PetRenderState source, PoseStack poseStack, SubmitNodeCollector collector) {
+			GoatRenderState state = copyLiving(source, new GoatRenderState());
+			state.hasLeftHorn = true;
+			state.hasRightHorn = true;
+			state.rammingXHeadRot = 0.0F;
 			model.setupAnim(state);
 			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
 		}

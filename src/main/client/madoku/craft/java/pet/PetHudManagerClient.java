@@ -27,6 +27,7 @@ public final class PetHudManagerClient {
 	private static final Identifier ABILITY_BONUS_HEALTH_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/bonus-health.png");
 	private static final Identifier ABILITY_EGG_VOLLEY_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/egg-volley.png");
 	private static final Identifier ABILITY_EXPLOSIVE_PROJECTILE_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/explosive-projectile.png");
+	private static final Identifier ABILITY_GOAT_CHARGE_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/goat-charge.png");
 	private static final Identifier ABILITY_FALL_DAMAGE_REDUCTION_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/fall-damage-reduction.png");
 	private static final Identifier ABILITY_HEALTH_REGENERATION_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/health-regeneration.png");
 	private static final Identifier ABILITY_MOB_SCAN_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/mob-scan.png");
@@ -34,17 +35,15 @@ public final class PetHudManagerClient {
 	private static final RenderPipeline ABILITY_SLOT_PIPELINE = RenderPipelines.GUI_TEXTURED;
 	private static final int ABILITY_SLOT_TEXTURE_SIZE = 16;
 	private static final int HOTBAR_HALF_WIDTH = 91;
-	private static final int HOTBAR_SLOT_ROW_HEIGHT = 22;
 	private static final int OFFHAND_SLOT_WIDTH = 29;
 	private static final int OFFHAND_TO_ABILITY_SPACING = 4;
-	private static final int ABILITY_SLOT_SIZE = 16;
-	private static final int ABILITY_CARD_SIZE = ABILITY_SLOT_SIZE / 2;
-	private static final int ABILITY_ICON_SIZE = 6;
+	private static final int ABILITY_CARD_SIZE = 10;
+	private static final int ABILITY_ICON_SIZE = 8;
 	private static final int ABILITY_ICON_OFFSET = (ABILITY_CARD_SIZE - ABILITY_ICON_SIZE) / 2;
 	private static final int ABILITY_CARD_SPACING = 2;
 	private static final int ABILITY_CARD_STRIDE = ABILITY_CARD_SIZE + ABILITY_CARD_SPACING;
 	private static final int ABILITY_ROWS_PER_COLUMN = 2;
-	private static final int ABILITY_SLOT_Y_OFFSET = ((HOTBAR_SLOT_ROW_HEIGHT - ABILITY_SLOT_SIZE) / 2) - 1;
+	private static final int ABILITY_BOTTOM_MARGIN = 2;
 	private static final float ABILITY_COOLDOWN_TEXT_SCALE = 0.5F;
 	private static final int ABILITY_COOLDOWN_TEXT_COLOR = 0xFFFFFFFF;
 	private static final int ABILITY_COOLDOWN_OVERLAY_COLOR = 0x7FFFFFFF;
@@ -91,12 +90,16 @@ public final class PetHudManagerClient {
 
 		java.util.List<AbilityHudEntry> abilities = visibleAbilities(inventory);
 		if (abilities.isEmpty()) return;
-		int slotY = context.guiHeight() - HOTBAR_SLOT_ROW_HEIGHT + ABILITY_SLOT_Y_OFFSET;
 		int[] columnXs = computeAbilityColumnXs(context, player, (abilities.size() + ABILITY_ROWS_PER_COLUMN - 1) / ABILITY_ROWS_PER_COLUMN);
 		for (int index = 0; index < abilities.size(); index++) {
 			AbilityHudEntry entry = abilities.get(index);
-			int cardX = columnXs[index / ABILITY_ROWS_PER_COLUMN];
-			int cardY = slotY + ((index % ABILITY_ROWS_PER_COLUMN) * ABILITY_CARD_STRIDE);
+			int column = index / ABILITY_ROWS_PER_COLUMN;
+			int row = index % ABILITY_ROWS_PER_COLUMN;
+			int entriesInColumn = Math.min(ABILITY_ROWS_PER_COLUMN, abilities.size() - (column * ABILITY_ROWS_PER_COLUMN));
+			int columnHeight = (entriesInColumn * ABILITY_CARD_SIZE) + ((entriesInColumn - 1) * ABILITY_CARD_SPACING);
+			int cardX = columnXs[column];
+			int cardY = context.guiHeight() - ABILITY_BOTTOM_MARGIN - columnHeight
+				+ ((entriesInColumn - 1 - row) * ABILITY_CARD_STRIDE);
 			renderScaledTexture(context, ABILITY_SLOT_TEXTURE, cardX, cardY);
 			renderScaledTexture(context, abilityIcon(entry.ability().abilityType()), cardX + ABILITY_ICON_OFFSET, cardY + ABILITY_ICON_OFFSET, ABILITY_ICON_SIZE);
 			if (entry.cooldownIndex() >= 0) {
@@ -107,12 +110,19 @@ public final class PetHudManagerClient {
 
 	private static java.util.List<AbilityHudEntry> visibleAbilities(PetInventory inventory) {
 		java.util.List<AbilityHudEntry> visible = new java.util.ArrayList<>();
+		java.util.Set<String> renderedSharedAbilities = new java.util.HashSet<>();
+		java.util.Set<String> renderedPassiveAbilities = new java.util.HashSet<>();
+		java.util.Set<String> renderedAutomaticAbilities = new java.util.HashSet<>();
 		for (int slot = 0; slot < Math.min(PetAPIManager.SLOT_COUNT, inventory.getContainerSize()); slot++) {
 			ItemStack stack = inventory.getItem(slot);
 			if (stack == null || stack.isEmpty()) continue;
 
 			int cooldownIndex = 0;
 			for (PetHudAPIManager.AbilityHudEntry ability : PetHudAPIManager.abilityEntries(stack)) {
+				String abilityType = normalizeAbilityId(ability.abilityType());
+				if (isSharedAbility(abilityType, ability.shared()) && !renderedSharedAbilities.add(abilityType)) continue;
+				if (ability.passive() && !renderedPassiveAbilities.add(abilityType)) continue;
+				if (isAutomaticAbility(abilityType, ability.automatic()) && !renderedAutomaticAbilities.add(abilityType)) continue;
 				int abilityCooldownIndex = -1;
 				if (ability.cooldownTicks() > 0L) {
 					if (cooldownIndex >= PetAPIManager.MAX_ABILITY_COOLDOWNS_PER_PET) continue;
@@ -122,6 +132,24 @@ public final class PetHudManagerClient {
 			}
 		}
 		return visible;
+	}
+
+	private static boolean isSharedAbility(String abilityType, boolean configuredShared) {
+		if (configuredShared) return true;
+		return switch (abilityType) {
+			case PetAPIManager.PET_ABILITY_WEB_PROJECTILE,
+				PetAPIManager.PET_ABILITY_EGG_PROJECTILE,
+				PetAPIManager.PET_ABILITY_HEALTH_REGENERATION,
+				PetAPIManager.PET_ABILITY_MOB_SCAN,
+				PetAPIManager.PET_ABILITY_FALL_DAMAGE_REDUCTION -> true;
+			default -> false;
+		};
+	}
+
+	private static boolean isAutomaticAbility(String abilityType, boolean configuredAutomatic) {
+		if (configuredAutomatic) return true;
+		return PetAPIManager.PET_ABILITY_BEE_SWARM.equals(abilityType)
+			|| PetAPIManager.PET_ABILITY_MOB_SCAN.equals(abilityType);
 	}
 
 	private static void renderScaledTexture(GuiGraphicsExtractor context, Identifier texture, int x, int y) {
@@ -170,6 +198,7 @@ public final class PetHudManagerClient {
 			case PetAPIManager.PET_ABILITY_MAX_HEALTH_BONUS -> ABILITY_BONUS_HEALTH_TEXTURE;
 			case PetAPIManager.PET_ABILITY_EGG_PROJECTILE -> ABILITY_EGG_VOLLEY_TEXTURE;
 			case PetAPIManager.PET_ABILITY_EXPLOSIVE_PROJECTILE -> ABILITY_EXPLOSIVE_PROJECTILE_TEXTURE;
+			case PetAPIManager.PET_ABILITY_GOAT_CHARGE -> ABILITY_GOAT_CHARGE_TEXTURE;
 			case PetAPIManager.PET_ABILITY_FALL_DAMAGE_REDUCTION -> ABILITY_FALL_DAMAGE_REDUCTION_TEXTURE;
 			case PetAPIManager.PET_ABILITY_HEALTH_REGENERATION -> ABILITY_HEALTH_REGENERATION_TEXTURE;
 			case PetAPIManager.PET_ABILITY_MOB_SCAN -> ABILITY_MOB_SCAN_TEXTURE;

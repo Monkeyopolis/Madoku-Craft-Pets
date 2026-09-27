@@ -19,5 +19,13 @@ public final class PetHudAPIManager {
 	public static void applySupportedPetLore(ItemStack stack) { provider.applySupportedPetLore(stack); }
 	public static List<AbilityHudEntry> abilityEntries(ItemStack stack) { return provider.abilityEntries(stack); }
 
-	public record AbilityHudEntry(String abilityType, long cooldownTicks) { }
+	public record AbilityHudEntry(String abilityType, long cooldownTicks, boolean shared, boolean passive, boolean automatic) {
+		public AbilityHudEntry(String abilityType, long cooldownTicks) {
+			this(abilityType, cooldownTicks, false, false, false);
+		}
+
+		public AbilityHudEntry(String abilityType, long cooldownTicks, boolean shared, boolean passive) {
+			this(abilityType, cooldownTicks, shared, passive, false);
+		}
+	}
 }

@@ -65,6 +65,7 @@ public final class PetAbilitiesManager {
 	private static final String PET_ABILITY_HEALTH_REGENERATION = MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION;
 	private static final String PET_ABILITY_MOB_SCAN = MadokuPetManager.PET_ABILITY_MOB_SCAN;
 	private static final String PET_ABILITY_BEE_SWARM = MadokuPetManager.PET_ABILITY_BEE_SWARM;
+	private static final String PET_ABILITY_GOAT_CHARGE = MadokuPetManager.PET_ABILITY_GOAT_CHARGE;
 	private static final int WEB_PROJECTILE_BASE_RICOCHETS = 3;
 	private static final double WEB_PROJECTILE_RICOCHET_RADIUS = 5.0D;
 	private static final double WEB_PROJECTILE_RICOCHET_RADIUS_PER_LEVEL = 0.5D;
@@ -118,6 +119,7 @@ public final class PetAbilitiesManager {
 	private static final double BEE_SWARM_ORBIT_RADIUS_VARIANCE = 0.30D;
 	private static final double BEE_SWARM_ORBIT_VERTICAL_VARIANCE = 0.30D;
 	private static final double BEE_SWARM_MAX_MOVE_PER_TICK = 0.38D;
+	private static final double GOAT_CHARGE_IMPACT_DISTANCE = 1.15D;
 	private static final Map<UUID, Map<Integer, Map<String, Long>>> PLAYER_ABILITY_COOLDOWNS = new HashMap<>();
 	private static final List<PendingPetAttack> PENDING_PET_ATTACKS = new ArrayList<>();
 	private static final Map<UUID, Long> NEXT_BEE_TARGET_SCAN_TICK = new HashMap<>();
@@ -129,6 +131,7 @@ public final class PetAbilitiesManager {
 	private static final Map<UUID, ChickenEggProjectileState> ACTIVE_CHICKEN_EGG_PROJECTILES = new ConcurrentHashMap<>();
 	private static final Map<UUID, ChickenEggVolleyState> ACTIVE_CHICKEN_EGG_VOLLEYS = new ConcurrentHashMap<>();
 	private static final Map<String, BeeSwarmState> ACTIVE_BEE_SWARMS = new ConcurrentHashMap<>();
+	private static final Map<UUID, GoatChargeState> ACTIVE_GOAT_CHARGES = new ConcurrentHashMap<>();
 	private static final Map<UUID, Float> MOB_SCAN_VULNERABILITY_BY_ENTITY = new ConcurrentHashMap<>();
 	private static final Map<UUID, ExplosiveVulnerabilityState> EXPLOSIVE_VULNERABILITY_BY_ENTITY = new ConcurrentHashMap<>();
 
@@ -145,6 +148,7 @@ public final class PetAbilitiesManager {
 		ACTIVE_CHICKEN_EGG_PROJECTILES.clear();
 		ACTIVE_CHICKEN_EGG_VOLLEYS.clear();
 		ACTIVE_BEE_SWARMS.clear();
+		ACTIVE_GOAT_CHARGES.clear();
 		MOB_SCAN_VULNERABILITY_BY_ENTITY.clear();
 		EXPLOSIVE_VULNERABILITY_BY_ENTITY.clear();
 	}
@@ -158,7 +162,8 @@ public final class PetAbilitiesManager {
 			|| !ACTIVE_EXPLOSIVE_PROJECTILES.isEmpty()
 			|| !ACTIVE_CHICKEN_EGG_PROJECTILES.isEmpty()
 			|| !ACTIVE_CHICKEN_EGG_VOLLEYS.isEmpty()
-			|| !ACTIVE_BEE_SWARMS.isEmpty();
+			|| !ACTIVE_BEE_SWARMS.isEmpty()
+			|| !ACTIVE_GOAT_CHARGES.isEmpty();
 	}
 
 	static void tickWebControls(MinecraftServer server) {
@@ -213,6 +218,57 @@ public final class PetAbilitiesManager {
 					entry.getKey(),
 					new HealthRegenerationState(nextHealTick, state.untilTick, state.healPercentage)
 				);
+			}
+		}
+	}
+
+	static void tickGoatCharges(MinecraftServer server) {
+		if (server == null || ACTIVE_GOAT_CHARGES.isEmpty()) {
+			return;
+		}
+
+		for (Map.Entry<UUID, GoatChargeState> entry : ACTIVE_GOAT_CHARGES.entrySet()) {
+			UUID petId = entry.getKey();
+			GoatChargeState state = entry.getValue();
+			ServerPlayer owner = state == null ? null : server.getPlayerList().getPlayer(state.ownerUuid);
+			ServerLevel level = state == null ? null : findLevel(server, state.dimensionId);
+			Mob pet = PetEntitiesManager.findMob(server, petId);
+			LivingEntity target = state == null ? null : findLivingEntity(server, state.targetUuid);
+			if (state == null || owner == null || !owner.isAlive() || level == null || pet == null || !pet.isAlive()
+				|| target == null || !target.isAlive() || target.level() != level || pet.level() != level) {
+				ACTIVE_GOAT_CHARGES.remove(petId, state);
+				continue;
+			}
+			if (state.delayTicks > 0L) {
+				ACTIVE_GOAT_CHARGES.put(petId, state.withDelayTicks(state.delayTicks - 1L));
+				continue;
+			}
+
+			Vec3 targetPosition = resolveWebProjectileTargetPosition(target);
+			Vec3 direction = targetPosition.subtract(pet.position());
+			double distance = direction.length();
+			if (distance <= GOAT_CHARGE_IMPACT_DISTANCE) {
+				applyGoatChargeImpact(level, owner, targetPosition, pet.position(), direction, state.damage, state.radius, state.knockbackHorizontal, state.knockbackVertical);
+				pet.getNavigation().stop();
+				pet.setDeltaMovement(Vec3.ZERO);
+				ACTIVE_GOAT_CHARGES.remove(petId, state);
+				continue;
+			}
+
+			Vec3 movement = direction.scale(Math.min(1.0D, state.chargeSpeed / Math.max(0.001D, distance)));
+			pet.getNavigation().stop();
+			pet.setYRot((float) (Math.atan2(movement.z, movement.x) * (180.0D / Math.PI)) - 90.0F);
+			pet.setYHeadRot(pet.getYRot());
+			pet.move(MoverType.SELF, movement);
+			pet.setDeltaMovement(Vec3.ZERO);
+			level.sendParticles(ParticleTypes.CLOUD, pet.getX(), pet.getY() + pet.getBbHeight() * 0.35D, pet.getZ(), 1, 0.03D, 0.02D, 0.03D, 0.0D);
+
+			long remainingTicks = state.remainingTicks - 1L;
+			if (remainingTicks <= 0L) {
+				applyGoatChargeImpact(level, owner, targetPosition, pet.position(), direction, state.damage, state.radius, state.knockbackHorizontal, state.knockbackVertical);
+				ACTIVE_GOAT_CHARGES.remove(petId, state);
+			} else {
+				ACTIVE_GOAT_CHARGES.put(petId, state.withRemainingTicks(remainingTicks));
 			}
 		}
 	}
@@ -357,7 +413,8 @@ public final class PetAbilitiesManager {
 					MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK,
 					MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION,
 					MadokuPetManager.PET_ABILITY_MOB_SCAN,
-					MadokuPetManager.PET_ABILITY_BEE_SWARM
+					MadokuPetManager.PET_ABILITY_BEE_SWARM,
+					MadokuPetManager.PET_ABILITY_GOAT_CHARGE
 				};
 				for (String abilityType : abilityTypes) {
 					defaults.put(PetConfigManager.abilityConfigId(abilityType), PetConfigManager.PetRule.defaultsForAbility(abilityType));
@@ -1083,7 +1140,8 @@ public final class PetAbilitiesManager {
 		}
 		return PET_ABILITY_RANGED_HOMING_ARROW.equals(ability.abilityType)
 			|| PET_ABILITY_WEB_PROJECTILE.equals(ability.abilityType)
-			|| PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(ability.abilityType);
+			|| PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(ability.abilityType)
+			|| PET_ABILITY_GOAT_CHARGE.equals(ability.abilityType);
 	}
 
 	private static Map<String, List<ReadyReactiveAttack>> groupReadyAbilities(List<ReadyReactiveAttack> readyAttacks) {
@@ -1144,6 +1202,10 @@ public final class PetAbilitiesManager {
 		if (player == null || target == null || abilityGroup == null || abilityGroup.isEmpty()) {
 			return;
 		}
+		if (PET_ABILITY_GOAT_CHARGE.equals(abilityGroup.get(0).ability.abilityType)) {
+			triggerNonSharedGoatAbilityGroup(player, target, abilityGroup, gameplayTicks);
+			return;
+		}
 
 		long delayTicks = 0L;
 		for (int index = 0; index < abilityGroup.size(); index++) {
@@ -1173,6 +1235,131 @@ public final class PetAbilitiesManager {
 				delayTicks = safeAddTicks(delayTicks, duplicateDelayTicks(attack.ability));
 			}
 		}
+	}
+
+	private static void triggerNonSharedGoatAbilityGroup(
+		ServerPlayer player,
+		LivingEntity primaryTarget,
+		List<ReadyReactiveAttack> abilityGroup,
+		long gameplayTicks
+	) {
+		List<LivingEntity> candidates = resolveGoatTargetCandidates(player, primaryTarget, abilityGroup);
+		if (candidates.isEmpty()) {
+			return;
+		}
+
+		Set<UUID> claimedTargets = new HashSet<>();
+		long delayTicks = 0L;
+		for (int index = 0; index < abilityGroup.size(); index++) {
+			ReadyReactiveAttack attack = abilityGroup.get(index);
+			if (attack == null || attack.ability == null) {
+				continue;
+			}
+
+			LivingEntity assignedTarget = null;
+			for (LivingEntity candidate : candidates) {
+				if (candidate != null
+					&& !claimedTargets.contains(candidate.getUUID())
+					&& isWithinAbilityRange(player, candidate, attack.ability)) {
+					assignedTarget = candidate;
+					break;
+				}
+			}
+			if (assignedTarget == null) {
+				continue;
+			}
+			claimedTargets.add(assignedTarget.getUUID());
+
+			Vec3 spawnPosition = resolveRangedAttackSpawn(player, index, abilityGroup.size(), attack.ability);
+			List<ReadyReactiveAttack> singleAttack = List.of(attack);
+			boolean launched;
+			if (delayTicks <= 0L) {
+				launched = spawnPetReactiveAttack(player, assignedTarget, spawnPosition, singleAttack);
+				if (launched) {
+					setAbilityCooldown(player.getUUID(), attack.slot, attack.ability.abilityType, gameplayTicks + attack.ability.cooldownTicks);
+				}
+			} else {
+				launched = enqueueDelayedPetAttack(player, attack.slot, attack.ability.abilityType, assignedTarget, spawnPosition, delayTicks);
+				if (launched) {
+					setAbilityCooldown(player.getUUID(), attack.slot, attack.ability.abilityType, gameplayTicks + delayTicks);
+				}
+			}
+
+			if (index + 1 < abilityGroup.size()) {
+				delayTicks = safeAddTicks(delayTicks, duplicateDelayTicks(attack.ability));
+			}
+		}
+	}
+
+	private static List<LivingEntity> resolveGoatTargetCandidates(
+		ServerPlayer player,
+		LivingEntity primaryTarget,
+		List<ReadyReactiveAttack> abilityGroup
+	) {
+		if (player == null || !(player.level() instanceof ServerLevel level) || abilityGroup == null || abilityGroup.isEmpty()) {
+			return List.of();
+		}
+
+		double searchRange = 0.0D;
+		for (ReadyReactiveAttack attack : abilityGroup) {
+			if (attack != null && attack.ability != null) {
+				searchRange = Math.max(searchRange, PetConfigManager.abilityRangeBlocks(attack.ability.abilityRange));
+			}
+		}
+		if (searchRange <= 0.0D) {
+			return List.of();
+		}
+		final double maxSearchRange = searchRange;
+
+		List<LivingEntity> candidates = new ArrayList<>();
+		Set<UUID> seen = new HashSet<>();
+		Set<UUID> reservedTargets = reservedGoatTargetIds(player.getUUID());
+		if (isValidGoatTarget(player, primaryTarget)
+			&& !reservedTargets.contains(primaryTarget.getUUID())
+			&& isWithinRange(player, primaryTarget, maxSearchRange)) {
+			candidates.add(primaryTarget);
+			seen.add(primaryTarget.getUUID());
+		}
+
+		List<LivingEntity> nearbyTargets = level.getEntitiesOfClass(
+			LivingEntity.class,
+			player.getBoundingBox().inflate(maxSearchRange),
+			candidate -> isValidGoatTarget(player, candidate)
+				&& !reservedTargets.contains(candidate.getUUID())
+				&& isWithinRange(player, candidate, maxSearchRange)
+		);
+		nearbyTargets.sort(Comparator.comparingDouble(player::distanceToSqr));
+		for (LivingEntity candidate : nearbyTargets) {
+			if (seen.add(candidate.getUUID())) {
+				candidates.add(candidate);
+			}
+		}
+		return candidates;
+	}
+
+	private static Set<UUID> reservedGoatTargetIds(UUID ownerUuid) {
+		Set<UUID> reservedTargets = new HashSet<>();
+		if (ownerUuid == null) {
+			return reservedTargets;
+		}
+		for (GoatChargeState state : ACTIVE_GOAT_CHARGES.values()) {
+			if (state != null && ownerUuid.equals(state.ownerUuid) && state.targetUuid != null) {
+				reservedTargets.add(state.targetUuid);
+			}
+		}
+		for (PendingPetAttack pending : PENDING_PET_ATTACKS) {
+			if (pending != null
+				&& ownerUuid.equals(pending.playerId())
+				&& PET_ABILITY_GOAT_CHARGE.equals(PetConfigManager.normalizeAbilityId(pending.abilityType()))
+				&& pending.targetId() != null) {
+				reservedTargets.add(pending.targetId());
+			}
+		}
+		return reservedTargets;
+	}
+
+	private static boolean isValidGoatTarget(ServerPlayer player, LivingEntity target) {
+		return canReactiveAttackTarget(player, target) && !PetComponentsManager.isManaged(target);
 	}
 
 	private static long duplicateDelayTicks(PetAbilityRule ability) {
@@ -1896,7 +2083,8 @@ public final class PetAbilitiesManager {
 			synchronizeAllAbilityCooldowns(player, inventory, gameplayTicks);
 
 			ItemStack stack = inventory.getItem(slot);
-			PetRule rule = PetConfigManager.resolvePetRule(stack);
+			PetRule baseRule = PetConfigManager.resolvePetRule(stack);
+			PetRule rule = baseRule == null ? null : baseRule.atLevel(PetEntitiesManager.petLevel(stack));
 			abilityType = PetConfigManager.normalizeAbilityId(abilityType);
 			PetAbilityRule ability = rule == null ? null : rule.ability(abilityType);
 			if (rule == null || ability == null || !ability.canPerformReactiveAttack() || !isAbilityOffCooldown(player, slot, ability.abilityType, gameplayTicks)) {
@@ -1905,17 +2093,13 @@ public final class PetAbilitiesManager {
 
 			LivingEntity target = findLivingEntity(server, targetId);
 			if (!canReactiveAttackTarget(player, target) || !isWithinAbilityRange(player, target, ability)) return;
-			if (spawnPetReactiveAttack(player, target, spawnPosition, rule, ability)) {
+			if (spawnPetReactiveAttack(player, target, spawnPosition, List.of(new ReadyReactiveAttack(slot, rule, ability)))) {
 				if (ability.isShared()) {
 					setSharedAbilityCooldownForInventory(player, inventory, ability.abilityType, gameplayTicks + ability.cooldownTicks);
 				} else {
 					setAbilityCooldown(playerId, slot, ability.abilityType, gameplayTicks + ability.cooldownTicks);
 				}
 			}
-		}
-
-		private static boolean spawnPetReactiveAttack(ServerPlayer player, LivingEntity target, Vec3 spawnPosition, PetRule rule, PetAbilityRule ability) {
-			return spawnPetReactiveAttack(player, target, spawnPosition, List.of(new ReadyReactiveAttack(-1, rule, ability)));
 		}
 
 		private static boolean spawnPetReactiveAttack(ServerPlayer player, LivingEntity target, Vec3 spawnPosition, List<ReadyReactiveAttack> abilityGroup) {
@@ -1945,6 +2129,8 @@ public final class PetAbilitiesManager {
 				);
 			} else if (PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(projectileAbility)) {
 				spawned = spawnManagedExplosiveProjectileVolley(player, target, spawnPosition, ability, abilityGroup, soundEvent, soundVolume, soundPitch);
+			} else if (PET_ABILITY_GOAT_CHARGE.equals(projectileAbility)) {
+				spawned = startGoatCharge(player, target, abilityGroup);
 			} else {
 				spawned = false;
 			}
@@ -1978,6 +2164,42 @@ public final class PetAbilitiesManager {
 				0.0F,
 				0.0F
 			);
+		}
+
+		private static boolean startGoatCharge(ServerPlayer player, LivingEntity target, List<ReadyReactiveAttack> abilityGroup) {
+			ReadyReactiveAttack strongest = strongestReadyAttack(abilityGroup);
+			PetAbilityRule ability = strongest == null ? null : strongest.ability;
+			if (player == null || target == null || ability == null || strongest.slot < 0 || !(player.level() instanceof ServerLevel level)) {
+				return false;
+			}
+
+			UUID[] petIds = PetEntitiesManager.PET_IDS_BY_PLAYER.get(player.getUUID());
+			UUID petId = petIds == null || strongest.slot >= petIds.length ? null : petIds[strongest.slot];
+			Mob pet = PetEntitiesManager.findMob(player.level().getServer(), petId);
+			if (!(pet instanceof MadokuPetEntity) || !pet.isAlive() || ACTIVE_GOAT_CHARGES.containsKey(pet.getUUID())) {
+				return false;
+			}
+
+			pet.getNavigation().stop();
+			ACTIVE_GOAT_CHARGES.put(
+				pet.getUUID(),
+				new GoatChargeState(
+					player.getUUID(),
+					strongest.slot,
+					pet.getUUID(),
+					level.dimension().toString(),
+					target.getUUID(),
+					Math.max(0.0F, ability.attackDamage),
+					Math.max(0.25F, ability.explosionRadius),
+					Math.max(0.0D, ability.knockbackHorizontal),
+					Math.max(0.0D, ability.knockbackVertical),
+					Math.max(0.6D, ability.attackSpeed),
+					Math.max(0L, ability.projectileIntervalTicks),
+					Math.max(1L, ability.lifetimeTicks)
+				)
+			);
+			level.sendParticles(ParticleTypes.CLOUD, pet.getX(), pet.getY() + pet.getBbHeight() * 0.5D, pet.getZ(), 6, 0.16D, 0.08D, 0.16D, 0.02D);
+			return true;
 		}
 
 		private static int resolveProjectileCount(ServerPlayer player, double configuredCount) {
@@ -2575,6 +2797,18 @@ public final class PetAbilitiesManager {
 			return ACTIVE_BEE_SWARMS.containsKey(beeSwarmKey(ownerId, slot));
 		}
 
+		static boolean isGoatChargeActive(UUID ownerId, int slot) {
+			if (ownerId == null || slot < 0 || ACTIVE_GOAT_CHARGES.isEmpty()) {
+				return false;
+			}
+			for (GoatChargeState state : ACTIVE_GOAT_CHARGES.values()) {
+				if (state != null && ownerId.equals(state.ownerUuid) && state.slot == slot) {
+					return true;
+				}
+			}
+			return false;
+		}
+
 			private static Mob findBeePetForOwnerSlot(MinecraftServer server, UUID ownerId, int slot) {
 			if (server == null || ownerId == null || slot < 0 || slot >= SLOT_COUNT) {
 				return null;
@@ -2912,6 +3146,66 @@ public final class PetAbilitiesManager {
 				resetDamageImmunity(target);
 				if (target.hurtServer(level, owner.damageSources().playerAttack(owner), damage)) {
 					target.setDeltaMovement(velocity);
+				}
+			}
+		}
+
+		private static void applyGoatChargeImpact(
+			ServerLevel level,
+			ServerPlayer owner,
+			Vec3 position,
+			Vec3 sourcePosition,
+			Vec3 chargeDirection,
+			float damage,
+			double radius,
+			double horizontalKnockback,
+			double verticalKnockback
+		) {
+			if (level == null || owner == null || position == null || radius <= 0.0D) {
+				return;
+			}
+
+			level.sendParticles(ParticleTypes.CLOUD, position.x, position.y, position.z, 18, radius * 0.35D, radius * 0.20D, radius * 0.35D, 0.04D);
+			level.playSound(null, position.x, position.y, position.z, SoundEvents.GOAT_RAM_IMPACT, SoundSource.NEUTRAL, 1.0F, 1.0F);
+			if (damage <= 0.0F && horizontalKnockback <= 0.0D && verticalKnockback <= 0.0D) {
+				return;
+			}
+
+			AABB area = new AABB(
+				position.x - radius,
+				position.y - radius,
+				position.z - radius,
+				position.x + radius,
+				position.y + radius,
+				position.z + radius
+			);
+			Vec3 horizontalDirection = chargeDirection == null ? Vec3.ZERO : new Vec3(chargeDirection.x, 0.0D, chargeDirection.z);
+			if (horizontalDirection.lengthSqr() <= 1.0E-6D && sourcePosition != null) {
+				horizontalDirection = new Vec3(position.x - sourcePosition.x, 0.0D, position.z - sourcePosition.z);
+			}
+			if (horizontalDirection.lengthSqr() > 1.0E-6D) {
+				horizontalDirection = horizontalDirection.normalize();
+			}
+
+			for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class, area, candidate ->
+				candidate != null
+					&& candidate.isAlive()
+					&& candidate != owner
+					&& !isManagedPet(candidate)
+					&& candidate.position().distanceTo(position) <= radius
+			)) {
+				resetDamageImmunity(entity);
+				if (damage > 0.0F) {
+					entity.hurtServer(level, owner.damageSources().playerAttack(owner), damage);
+				}
+				if (horizontalKnockback > 0.0D || verticalKnockback > 0.0D) {
+					Vec3 direction = horizontalDirection;
+					if (direction.lengthSqr() <= 1.0E-6D) {
+						Vec3 offset = entity.position().subtract(position);
+						direction = new Vec3(offset.x, 0.0D, offset.z);
+						if (direction.lengthSqr() > 1.0E-6D) direction = direction.normalize();
+					}
+					entity.push(direction.x * horizontalKnockback, verticalKnockback, direction.z * horizontalKnockback);
 				}
 			}
 		}
@@ -3313,6 +3607,55 @@ public final class PetAbilitiesManager {
 		double orbitAngle,
 		Vec3 position
 	) {}
+
+	private record GoatChargeState(
+		UUID ownerUuid,
+		int slot,
+		UUID petUuid,
+		String dimensionId,
+		UUID targetUuid,
+		float damage,
+		double radius,
+		double knockbackHorizontal,
+		double knockbackVertical,
+		double chargeSpeed,
+		long delayTicks,
+		long remainingTicks
+	) {
+		private GoatChargeState withDelayTicks(long nextDelayTicks) {
+			return new GoatChargeState(
+				ownerUuid,
+				slot,
+				petUuid,
+				dimensionId,
+				targetUuid,
+				damage,
+				radius,
+				knockbackHorizontal,
+				knockbackVertical,
+				chargeSpeed,
+				Math.max(0L, nextDelayTicks),
+				remainingTicks
+			);
+		}
+
+		private GoatChargeState withRemainingTicks(long nextRemainingTicks) {
+			return new GoatChargeState(
+				ownerUuid,
+				slot,
+				petUuid,
+				dimensionId,
+				targetUuid,
+				damage,
+				radius,
+				knockbackHorizontal,
+				knockbackVertical,
+				chargeSpeed,
+				delayTicks,
+				nextRemainingTicks
+			);
+		}
+	}
 	private static UUID parseUuid(String value) {
 			if (value == null || value.isBlank()) {
 				return null;

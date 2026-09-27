@@ -29,6 +29,7 @@ public final class PetAPIManager {
 	public static final String PET_ABILITY_HEALTH_REGENERATION = "health_regeneration";
 	public static final String PET_ABILITY_MOB_SCAN = "mob_scan";
 	public static final String PET_ABILITY_BEE_SWARM = "bee_swarm";
+	public static final String PET_ABILITY_GOAT_CHARGE = "goat_charge";
 
 	private static final PetProvider UNAVAILABLE_PROVIDER = new PetProvider() { };
 	private static volatile PetProvider provider = UNAVAILABLE_PROVIDER;

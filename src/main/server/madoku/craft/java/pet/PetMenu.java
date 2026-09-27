@@ -3,8 +3,6 @@ package madoku.craft.java.pet;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetHolder;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetInventory;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetSlot;
-import madoku.craft.java.core.rarity.RarityAPIManager;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Prediction;
 import net.minecraft.world.SimpleContainer;
@@ -14,15 +12,16 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.resources.Identifier;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /** Dedicated synchronized menu for pet equipment and pet upgrades. */
 public final class PetMenu extends AbstractContainerMenu {
-	private static final Identifier ESSENCE_ID = Identifier.fromNamespaceAndPath("madoku-craft", "essence");
 	public static final int PET_SLOT_START = 0;
 	public static final int UPGRADE_SLOT_START = PET_SLOT_START + PetEntitiesAPIManager.SLOT_COUNT;
-	public static final int UPGRADE_SLOT_COUNT = 4;
+	public static final int UPGRADE_INGREDIENT_SLOT_COUNT = 3;
+	public static final int UPGRADE_SLOT_COUNT = 1 + UPGRADE_INGREDIENT_SLOT_COUNT;
 	public static final int PLAYER_INVENTORY_START = UPGRADE_SLOT_START + UPGRADE_SLOT_COUNT;
 	public static final int HOTBAR_START = PLAYER_INVENTORY_START + 27;
 	public static final int MENU_SLOT_COUNT = HOTBAR_START + 9;
@@ -60,13 +59,18 @@ public final class PetMenu extends AbstractContainerMenu {
 		if (!PetEntitiesAPIManager.isValid(target)) return UpgradeRequirements.empty();
 
 		int level = PetEntitiesAPIManager.petLevel(target);
-		UpgradeRequirement petItems = new UpgradeRequirement(countPetItems(target.getItem()), level);
-		int experienceCost = experienceBottleCost(target, level);
-		UpgradeRequirement experienceBottles = new UpgradeRequirement(countItems(Items.EXPERIENCE_BOTTLE), experienceCost);
-		UpgradeRequirement essence = new UpgradeRequirement(countItems(essenceItem()), experienceCost * 2);
+		PetConfigManager.PetRule rule = PetConfigManager.resolvePetRule(target);
+		if (rule == null) return UpgradeRequirements.empty();
+
+		List<IngredientRequirement> ingredients = new ArrayList<>();
+		for (PetConfigManager.PetUpgradeIngredient ingredient : rule.upgradeIngredients) {
+			int required = scaledCost(ingredient.baseCost(), level);
+			int owned = countIngredient(ingredient.item());
+			ingredients.add(new IngredientRequirement(ingredient, owned, required));
+		}
 		boolean belowMaximum = level < PetAPIManager.maxPetLevel();
-		boolean canUpgrade = belowMaximum && petItems.isMet() && experienceBottles.isMet() && essence.isMet();
-		return new UpgradeRequirements(true, canUpgrade, petItems, experienceBottles, essence);
+		boolean canUpgrade = belowMaximum && ingredients.stream().allMatch(IngredientRequirement::isMet);
+		return new UpgradeRequirements(true, canUpgrade, List.copyOf(ingredients));
 	}
 
 	/** Applies an upgrade on the server after rechecking all costs against the active player's inventory. */
@@ -78,9 +82,9 @@ public final class PetMenu extends AbstractContainerMenu {
 
 		ItemStack target = upgradeInventory.getItem(0);
 		int nextLevel = PetEntitiesAPIManager.petLevel(target) + 1;
-		consumePetItems(target.getItem(), requirements.petItems().required());
-		consumeItems(Items.EXPERIENCE_BOTTLE, requirements.experienceBottles().required());
-		consumeItems(essenceItem(), requirements.essence().required());
+		for (IngredientRequirement ingredient : requirements.ingredients()) {
+			consumeIngredient(ingredient.ingredient().item(), ingredient.required());
+		}
 		PetEntitiesAPIManager.setPetLevel(target, nextLevel);
 		PetHudManager.applySupportedPetLore(target);
 		upgradeInventory.setChanged();
@@ -145,6 +149,24 @@ public final class PetMenu extends AbstractContainerMenu {
 		return count;
 	}
 
+	private int countIngredient(Item item) {
+		return isPetItem(item) ? countPetItems(item) : countItems(item);
+	}
+
+	private void consumeIngredient(Item item, int amount) {
+		if (isPetItem(item)) {
+			consumeItemsMatching(amount, stack -> stack.getItem() == item
+				&& PetEntitiesAPIManager.isValid(stack)
+				&& PetEntitiesAPIManager.petLevel(stack) == 1);
+			return;
+		}
+		consumeItems(item, amount);
+	}
+
+	private static boolean isPetItem(Item item) {
+		return item != null && PetEntitiesAPIManager.isPetItem(new ItemStack(item));
+	}
+
 	private Slot displayOnlySlot(int inventoryIndex, int x, int y) {
 		return new Slot(upgradeInventory, inventoryIndex, x, y) {
 			@Override public boolean mayPlace(ItemStack stack) { return false; }
@@ -159,12 +181,6 @@ public final class PetMenu extends AbstractContainerMenu {
 			if (stack.is(item)) count += stack.getCount();
 		}
 		return count;
-	}
-
-	private void consumePetItems(Item petItem, int amount) {
-		consumeItemsMatching(amount, stack -> stack.getItem() == petItem
-			&& PetEntitiesAPIManager.isValid(stack)
-			&& PetEntitiesAPIManager.petLevel(stack) == 1);
 	}
 
 	private void consumeItems(Item item, int amount) {
@@ -186,30 +202,12 @@ public final class PetMenu extends AbstractContainerMenu {
 		}
 	}
 
-	static Item essenceItem() {
-		return BuiltInRegistries.ITEM.getValue(ESSENCE_ID);
+	private static int scaledCost(int baseCost, int level) {
+		long scaled = (long) Math.max(1, baseCost) * Math.max(1, level);
+		return (int) Math.min(Integer.MAX_VALUE, scaled);
 	}
 
-	private static int experienceBottleCost(ItemStack target, int level) {
-		return rarityExperienceStep(target) * Math.max(1, level);
-	}
-
-	private static int rarityExperienceStep(ItemStack target) {
-		RarityAPIManager.Tier rarity = RarityAPIManager.detectAppliedRarity(target);
-		if (rarity == null) {
-			rarity = RarityAPIManager.fromString(PetHagAPIManager.rarity(target));
-		}
-		if (rarity == null) rarity = RarityAPIManager.Tier.COMMON;
-		return switch (rarity) {
-			case COMMON -> 2;
-			case RARE -> 4;
-			case EPIC -> 6;
-			case LEGENDARY -> 8;
-			case MYTHIC -> 10;
-		};
-	}
-
-	public record UpgradeRequirement(int owned, int required) {
+	public record IngredientRequirement(PetConfigManager.PetUpgradeIngredient ingredient, int owned, int required) {
 		public boolean isMet() { return owned >= required; }
 		public String displayText() { return owned + "/" + required; }
 	}
@@ -217,13 +215,10 @@ public final class PetMenu extends AbstractContainerMenu {
 	public record UpgradeRequirements(
 		boolean hasTarget,
 		boolean canUpgrade,
-		UpgradeRequirement petItems,
-		UpgradeRequirement experienceBottles,
-		UpgradeRequirement essence
+		List<IngredientRequirement> ingredients
 	) {
 		private static UpgradeRequirements empty() {
-			UpgradeRequirement emptyRequirement = new UpgradeRequirement(0, 0);
-			return new UpgradeRequirements(false, false, emptyRequirement, emptyRequirement, emptyRequirement);
+			return new UpgradeRequirements(false, false, List.of());
 		}
 	}
 }
