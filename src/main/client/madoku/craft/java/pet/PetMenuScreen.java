@@ -17,8 +17,6 @@ import net.minecraft.world.item.ItemStack;
 public final class PetMenuScreen extends AbstractContainerScreen<PetMenu> {
 	private static final Identifier CONTAINER_TEXTURE = texture("madoku-menu/pet-menu-container.png");
 	private static final Identifier PET_SLOT_TEXTURE = texture("shared-ui/pet-slot.png");
-	private static final Identifier BOTTLE_SLOT_TEXTURE = texture("shared-ui/bottle-slot.png");
-	private static final Identifier ESSENCE_SLOT_TEXTURE = texture("shared-ui/essence-slot.png");
 	private static final Identifier UPGRADE_TEXTURE = texture("shared-ui/upgrade-button.png");
 	private static final Identifier UPGRADE_HIGHLIGHTED_TEXTURE = texture("shared-ui/upgrade-button-highlighted.png");
 	private static final Identifier EXIT_TEXTURE = texture("shared-ui/exit-button.png");
@@ -137,9 +135,6 @@ public final class PetMenuScreen extends AbstractContainerScreen<PetMenu> {
 		int essenceX = 121;
 		int slotY = 74;
 		if (!requirements.hasTarget()) {
-			blitSlotIcon(graphics, PET_SLOT_TEXTURE, petX, slotY);
-			blitSlotIcon(graphics, BOTTLE_SLOT_TEXTURE, bottleX - 1, slotY - 1);
-			blitSlotIcon(graphics, ESSENCE_SLOT_TEXTURE, essenceX, slotY);
 			return;
 		}
 

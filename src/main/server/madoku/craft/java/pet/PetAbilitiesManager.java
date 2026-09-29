@@ -84,6 +84,8 @@ public final class PetAbilitiesManager {
 	private static final double EGG_PROJECTILE_DUPLICATE_DAMAGE = 1.0D;
 	private static final double EGG_PROJECTILE_DUPLICATE_COUNT = 0.5D;
 	private static final double EGG_PROJECTILE_DUPLICATE_RADIUS = 0.25D;
+	private static final long GOAT_CHARGE_NO_PHYSICS_DELAY_TICKS = 2L * 20L;
+	private static final long GOAT_CHARGE_TIMEOUT_TICKS = 5L * 20L;
 	private static final double FALL_DAMAGE_REDUCTION_BASE = 0.30D;
 	private static final double FALL_DAMAGE_REDUCTION_PER_DUPLICATE = 0.05D;
 	private static final int BAT_SCAN_BASE_RADIUS_BLOCKS = 24;
@@ -236,10 +238,19 @@ public final class PetAbilitiesManager {
 			LivingEntity target = state == null ? null : findLivingEntity(server, state.targetUuid);
 			if (state == null || owner == null || !owner.isAlive() || level == null || pet == null || !pet.isAlive()
 				|| target == null || !target.isAlive() || target.level() != level || pet.level() != level) {
+				stopGoatCharge(pet, state, false);
 				ACTIVE_GOAT_CHARGES.remove(petId, state);
 				continue;
 			}
+
+			long elapsedTicks = Math.max(0L, level.getGameTime() - state.startedGameTime);
+			pet.noPhysics = elapsedTicks >= GOAT_CHARGE_NO_PHYSICS_DELAY_TICKS;
 			if (state.delayTicks > 0L) {
+				if (elapsedTicks >= GOAT_CHARGE_TIMEOUT_TICKS) {
+					stopGoatCharge(pet, state, true);
+					ACTIVE_GOAT_CHARGES.remove(petId, state);
+					continue;
+				}
 				ACTIVE_GOAT_CHARGES.put(petId, state.withDelayTicks(state.delayTicks - 1L));
 				continue;
 			}
@@ -249,8 +260,12 @@ public final class PetAbilitiesManager {
 			double distance = direction.length();
 			if (distance <= GOAT_CHARGE_IMPACT_DISTANCE) {
 				applyGoatChargeImpact(level, owner, targetPosition, pet.position(), direction, state.damage, state.radius, state.knockbackHorizontal, state.knockbackVertical);
-				pet.getNavigation().stop();
-				pet.setDeltaMovement(Vec3.ZERO);
+				stopGoatCharge(pet, state, false);
+				ACTIVE_GOAT_CHARGES.remove(petId, state);
+				continue;
+			}
+			if (elapsedTicks >= GOAT_CHARGE_TIMEOUT_TICKS) {
+				stopGoatCharge(pet, state, true);
 				ACTIVE_GOAT_CHARGES.remove(petId, state);
 				continue;
 			}
@@ -262,14 +277,23 @@ public final class PetAbilitiesManager {
 			pet.move(MoverType.SELF, movement);
 			pet.setDeltaMovement(Vec3.ZERO);
 			level.sendParticles(ParticleTypes.CLOUD, pet.getX(), pet.getY() + pet.getBbHeight() * 0.35D, pet.getZ(), 1, 0.03D, 0.02D, 0.03D, 0.0D);
+		}
+	}
 
-			long remainingTicks = state.remainingTicks - 1L;
-			if (remainingTicks <= 0L) {
-				applyGoatChargeImpact(level, owner, targetPosition, pet.position(), direction, state.damage, state.radius, state.knockbackHorizontal, state.knockbackVertical);
-				ACTIVE_GOAT_CHARGES.remove(petId, state);
-			} else {
-				ACTIVE_GOAT_CHARGES.put(petId, state.withRemainingTicks(remainingTicks));
-			}
+	private static void stopGoatCharge(Mob pet, GoatChargeState state, boolean refundCooldown) {
+		if (pet == null) {
+			return;
+		}
+		pet.getNavigation().stop();
+		pet.setDeltaMovement(Vec3.ZERO);
+		pet.noPhysics = state != null && state.originalNoPhysics;
+		if (refundCooldown && state != null) {
+			setAbilityCooldown(
+				state.ownerUuid,
+				state.slot,
+				PET_ABILITY_GOAT_CHARGE,
+				TimeAPIManager.getGameplayTicks()
+			);
 		}
 	}
 
@@ -2180,7 +2204,10 @@ public final class PetAbilitiesManager {
 				return false;
 			}
 
+			double chargeSpeed = Math.max(0.6D, ability.attackSpeed);
+			long delayTicks = Math.max(0L, ability.projectileIntervalTicks);
 			pet.getNavigation().stop();
+
 			ACTIVE_GOAT_CHARGES.put(
 				pet.getUUID(),
 				new GoatChargeState(
@@ -2193,9 +2220,10 @@ public final class PetAbilitiesManager {
 					Math.max(0.25F, ability.explosionRadius),
 					Math.max(0.0D, ability.knockbackHorizontal),
 					Math.max(0.0D, ability.knockbackVertical),
-					Math.max(0.6D, ability.attackSpeed),
-					Math.max(0L, ability.projectileIntervalTicks),
-					Math.max(1L, ability.lifetimeTicks)
+					chargeSpeed,
+					delayTicks,
+					level.getGameTime(),
+					pet.noPhysics
 				)
 			);
 			level.sendParticles(ParticleTypes.CLOUD, pet.getX(), pet.getY() + pet.getBbHeight() * 0.5D, pet.getZ(), 6, 0.16D, 0.08D, 0.16D, 0.02D);
@@ -3620,7 +3648,8 @@ public final class PetAbilitiesManager {
 		double knockbackVertical,
 		double chargeSpeed,
 		long delayTicks,
-		long remainingTicks
+		long startedGameTime,
+		boolean originalNoPhysics
 	) {
 		private GoatChargeState withDelayTicks(long nextDelayTicks) {
 			return new GoatChargeState(
@@ -3635,24 +3664,8 @@ public final class PetAbilitiesManager {
 				knockbackVertical,
 				chargeSpeed,
 				Math.max(0L, nextDelayTicks),
-				remainingTicks
-			);
-		}
-
-		private GoatChargeState withRemainingTicks(long nextRemainingTicks) {
-			return new GoatChargeState(
-				ownerUuid,
-				slot,
-				petUuid,
-				dimensionId,
-				targetUuid,
-				damage,
-				radius,
-				knockbackHorizontal,
-				knockbackVertical,
-				chargeSpeed,
-				delayTicks,
-				nextRemainingTicks
+				startedGameTime,
+				originalNoPhysics
 			);
 		}
 	}

@@ -1,5 +1,6 @@
 package madoku.craft.java.pet;
 
+import madoku.craft.java.core.upgrade.UpgradeCostFeatureAPIManager;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetHolder;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetInventory;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetSlot;
@@ -12,6 +13,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -65,6 +67,9 @@ public final class PetMenu extends AbstractContainerMenu {
 		List<IngredientRequirement> ingredients = new ArrayList<>();
 		for (PetConfigManager.PetUpgradeIngredient ingredient : rule.upgradeIngredients) {
 			int required = scaledCost(ingredient.baseCost(), level);
+			if (ingredient.item() == Items.EXPERIENCE_BOTTLE) {
+				required = UpgradeCostFeatureAPIManager.adjustExperienceBottleCost(required);
+			}
 			int owned = countIngredient(ingredient.item());
 			ingredients.add(new IngredientRequirement(ingredient, owned, required));
 		}
