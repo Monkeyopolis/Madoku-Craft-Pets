@@ -29,7 +29,7 @@ public final class PetMenuScreen extends AbstractContainerScreen<PetMenu> {
 	private static final int UPGRADE_BUTTON_X = 76;
 	private static final int UPGRADE_BUTTON_Y = 103;
 	private static final int UPGRADE_BUTTON_WIDTH = 54;
-	private static final int UPGRADE_BUTTON_HEIGHT = 18;
+    private static final int UPGRADE_BUTTON_HEIGHT = 14;
 	private static final int EXIT_X = 157;
 	private static final int EXIT_Y = 7;
 	private static final int EXIT_SIZE = 12;

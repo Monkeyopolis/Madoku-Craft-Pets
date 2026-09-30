@@ -745,8 +745,8 @@ public final class PetConfigManager {
 				int levelDelta = Math.max(1, level) - 1;
 				resolvedAttackDamage = attackDamage + levelDelta;
 				resolvedExplosionRadius = explosionRadius + (levelDelta * 0.25D);
-				resolvedKnockbackHorizontal = knockbackHorizontal + levelDelta;
-				resolvedKnockbackVertical = knockbackVertical + (levelDelta * 0.5D);
+				resolvedKnockbackHorizontal = knockbackHorizontal + (levelDelta * 0.5D);
+				resolvedKnockbackVertical = knockbackVertical + (levelDelta * 0.25D);
 			}
 			if ("minecraft:chicken".equals(normalizedPetId)) {
 				if (MadokuPetManager.PET_ABILITY_EGG_PROJECTILE.equals(abilityType)) {
