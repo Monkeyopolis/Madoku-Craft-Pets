@@ -23,6 +23,7 @@ public final class PetAbilitiesAPIManager {
 	public static void initialize() { provider.initialize(); }
 	public static float applyMobScanDamage(LivingEntity entity, float amount) { return provider.applyMobScanDamage(entity, amount); }
 	public static float applyDamageVulnerabilities(LivingEntity entity, float amount) { return provider.applyDamageVulnerabilities(entity, amount); }
+	public static float getDamageVulnerabilityPercent(LivingEntity entity) { return provider.getDamageVulnerabilityPercent(entity); }
 	public static boolean isWebStunned(Entity entity) { return provider.isWebStunned(entity); }
 	public static float scaleWebMovementSpeed(LivingEntity entity, float speed) { return provider.scaleWebMovementSpeed(entity, speed); }
 	public static Vec3 scaleWebMovement(LivingEntity entity, Vec3 movement) { return provider.scaleWebMovement(entity, movement); }

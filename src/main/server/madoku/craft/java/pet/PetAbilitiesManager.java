@@ -20,7 +20,9 @@ import madoku.craft.java.pet.PetComponentsAPIManager.PetInventory;
 import madoku.craft.java.pet.PetConfigManager.PetAbilityRule;
 import madoku.craft.java.pet.PetConfigManager.PetRule;
 import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -28,6 +30,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
@@ -53,6 +56,10 @@ import java.util.concurrent.ConcurrentHashMap;
 /** Owns passive, reactive, automatic, and cooldown-based pet abilities. */
 public final class PetAbilitiesManager {
 	private static final Identifier PLAYER_DAMAGE_MODIFIER = Identifier.fromNamespaceAndPath("madoku-craft", "madoku_pets_player_damage_bonus");
+	private static final ResourceKey<DamageType> PET_ABILITY_DAMAGE_TYPE = ResourceKey.create(
+		Registries.DAMAGE_TYPE,
+		Identifier.fromNamespaceAndPath("madoku-craft", "pet_ability")
+	);
 	private static final Identifier PLAYER_HEALTH_MODIFIER = Identifier.fromNamespaceAndPath("madoku-craft", "madoku_pets_player_max_health_bonus");
 	private static final int SLOT_COUNT = PetEntitiesManager.SLOT_COUNT;
 	private static final long PENDING_ATTACK_EXPIRATION_TICKS = 5L * 60L * 20L;
@@ -108,6 +115,9 @@ public final class PetAbilitiesManager {
 	private static final float BAT_SCAN_BASE_VULNERABILITY = 0.10F;
 	private static final float MOB_SCAN_VULNERABILITY_PER_DUPLICATE_ABILITY = 0.05F;
 	private static final String MOB_SCAN_VULNERABILITY_TAG = "madoku-craft.mob-scan-vulnerability";
+	private static final String MOB_SCAN_VULNERABILITY_VALUE_PREFIX = "madoku-craft.mob-scan-vulnerability-value:";
+	private static final String EXPLOSIVE_VULNERABILITY_VALUE_PREFIX = "madoku-craft.explosive-vulnerability-value:";
+	private static final String EXPLOSIVE_VULNERABILITY_EXPIRES_PREFIX = "madoku-craft.explosive-vulnerability-expires:";
 	private static final long MOB_SCAN_COOLDOWN_REDUCTION_PER_DUPLICATE_ABILITY = 5L * 20L;
 	private static final long BAT_SCAN_COOLDOWN_REDUCTION_PER_LEVEL = 2L * 20L + 10L;
 	private static final double BEE_SWARM_SCAN_RADIUS = 16.0D;
@@ -185,10 +195,23 @@ public final class PetAbilitiesManager {
 		if (server == null || ACTIVE_WEB_CONTROLS.isEmpty()) {
 			return;
 		}
+		EXPLOSIVE_VULNERABILITY_BY_ENTITY.entrySet().removeIf(entry -> {
+			ExplosiveVulnerabilityState state = entry.getValue();
+			if (state == null) {
+				return true;
+			}
+			for (ServerLevel level : server.getAllLevels()) {
+				if (level.getEntity(entry.getKey()) instanceof LivingEntity entity) {
+					if (level.getGameTime() >= state.expiresAtGameTime) {
+						clearExplosiveVulnerability(entity);
+						return true;
+					}
+					return false;
+				}
+			}
+			return false;
+		});
 		long now = TimeAPIManager.getGameplayTicks();
-		EXPLOSIVE_VULNERABILITY_BY_ENTITY.entrySet().removeIf(entry ->
-			entry.getValue() == null || now >= entry.getValue().expiresAtTick
-		);
 		for (Map.Entry<UUID, WebControlState> entry : ACTIVE_WEB_CONTROLS.entrySet()) {
 			WebControlState state = entry.getValue();
 			if (state == null) {
@@ -338,6 +361,7 @@ public final class PetAbilitiesManager {
 					state.damageWaveStarted = true;
 					state.waveStartedTick = now;
 					state.waveUntilTick = safeAdd(now, REFLECTIVE_TAUNT_DAMAGE_WAVE_TICKS);
+					level.playSound(null, center.getX(), center.getY(), center.getZ(), SoundEvents.BEACON_POWER_SELECT, SoundSource.NEUTRAL, 2.0F, 1.0F);
 					sendReflectiveTauntVisual(server, state, center, true);
 				}
 			}
@@ -349,58 +373,153 @@ public final class PetAbilitiesManager {
 			return amount;
 		}
 		if (!entity.entityTags().contains(MOB_SCAN_VULNERABILITY_TAG)) {
-			MOB_SCAN_VULNERABILITY_BY_ENTITY.remove(entity.getUUID());
+			clearMobScanVulnerability(entity);
 			return amount;
 		}
-		Float vulnerability = MOB_SCAN_VULNERABILITY_BY_ENTITY.get(entity.getUUID());
+		Float vulnerability = resolveMobScanVulnerability(entity);
 		if (vulnerability == null) {
-			entity.removeTag(MOB_SCAN_VULNERABILITY_TAG);
+			clearMobScanVulnerability(entity);
 			return amount;
 		}
 		if (!entity.hasEffect(MobEffects.GLOWING)) {
-			entity.removeTag(MOB_SCAN_VULNERABILITY_TAG);
-			MOB_SCAN_VULNERABILITY_BY_ENTITY.remove(entity.getUUID());
+			clearMobScanVulnerability(entity);
 			return amount;
 		}
 		return amount * (1.0F + vulnerability);
 	}
 
 	public static float applyDamageVulnerabilities(LivingEntity entity, float amount) {
-		return applyExplosiveVulnerabilityDamage(entity, applyMobScanDamage(entity, amount));
+		if (entity == null || amount <= 0.0F) return amount;
+		float vulnerabilityPercent = getDamageVulnerabilityPercent(entity);
+		return amount * (1.0F + vulnerabilityPercent / 100.0F);
 	}
 
-	private static float applyExplosiveVulnerabilityDamage(LivingEntity entity, float amount) {
-		if (entity == null || amount <= 0.0F) {
-			return amount;
-		}
-		ExplosiveVulnerabilityState state = EXPLOSIVE_VULNERABILITY_BY_ENTITY.get(entity.getUUID());
-		long now = TimeAPIManager.getGameplayTicks();
-		if (state == null || now >= state.expiresAtTick) {
-			if (state != null) {
-				EXPLOSIVE_VULNERABILITY_BY_ENTITY.remove(entity.getUUID(), state);
+	/** Returns the active additive vulnerability supplied by pet abilities. */
+	public static float getDamageVulnerabilityPercent(LivingEntity entity) {
+		if (entity == null) return 0.0F;
+
+		float vulnerability = 0.0F;
+		if (entity.entityTags().contains(MOB_SCAN_VULNERABILITY_TAG)) {
+			Float mobScanVulnerability = resolveMobScanVulnerability(entity);
+			if (mobScanVulnerability == null || !entity.hasEffect(MobEffects.GLOWING)) {
+				clearMobScanVulnerability(entity);
+			} else {
+				vulnerability += Math.max(0.0F, mobScanVulnerability);
 			}
-			return amount;
+		} else {
+			clearMobScanVulnerability(entity);
 		}
-		return amount * (1.0F + state.vulnerability);
+
+		ExplosiveVulnerabilityState explosiveState = resolveExplosiveVulnerability(entity);
+		long now = entity.level().getGameTime();
+		if (explosiveState == null || now >= explosiveState.expiresAtGameTime) {
+			clearExplosiveVulnerability(entity);
+		} else {
+			vulnerability += Math.max(0.0F, explosiveState.vulnerability);
+		}
+
+		return vulnerability * 100.0F;
 	}
 
 	private static void addExplosiveVulnerability(LivingEntity entity, float vulnerability, int durationTicks) {
 		if (entity == null || vulnerability <= 0.0F || durationTicks <= 0) {
 			return;
 		}
-		long now = TimeAPIManager.getGameplayTicks();
-		ExplosiveVulnerabilityState existing = EXPLOSIVE_VULNERABILITY_BY_ENTITY.get(entity.getUUID());
-		if (existing != null && now >= existing.expiresAtTick) {
+		long now = entity.level().getGameTime();
+		ExplosiveVulnerabilityState existing = resolveExplosiveVulnerability(entity);
+		if (existing != null && now >= existing.expiresAtGameTime) {
+			clearExplosiveVulnerability(entity);
 			existing = null;
 		}
-		float appliedVulnerability = existing == null ? vulnerability : vulnerability * 0.5F;
 		int appliedDurationTicks = existing == null ? durationTicks : halfDurationTicks(durationTicks);
-		float totalVulnerability = appliedVulnerability + (existing == null ? 0.0F : existing.vulnerability);
-		long expiresAt = (existing == null ? now : Math.max(now, existing.expiresAtTick)) + appliedDurationTicks;
-		EXPLOSIVE_VULNERABILITY_BY_ENTITY.put(
-			entity.getUUID(),
-			new ExplosiveVulnerabilityState(totalVulnerability, expiresAt)
-		);
+		float totalVulnerability = existing == null ? vulnerability : existing.vulnerability;
+		long expiresAtGameTime = (existing == null ? now : Math.max(now, existing.expiresAtGameTime)) + appliedDurationTicks;
+		ExplosiveVulnerabilityState state = new ExplosiveVulnerabilityState(totalVulnerability, expiresAtGameTime);
+		EXPLOSIVE_VULNERABILITY_BY_ENTITY.put(entity.getUUID(), state);
+		persistExplosiveVulnerability(entity, state);
+	}
+
+	private static Float resolveMobScanVulnerability(LivingEntity entity) {
+		Float vulnerability = MOB_SCAN_VULNERABILITY_BY_ENTITY.get(entity.getUUID());
+		if (vulnerability != null) {
+			return vulnerability;
+		}
+		vulnerability = readFloatTag(entity, MOB_SCAN_VULNERABILITY_VALUE_PREFIX);
+		if (vulnerability != null) {
+			MOB_SCAN_VULNERABILITY_BY_ENTITY.put(entity.getUUID(), vulnerability);
+		}
+		return vulnerability;
+	}
+
+	private static void clearMobScanVulnerability(LivingEntity entity) {
+		MOB_SCAN_VULNERABILITY_BY_ENTITY.remove(entity.getUUID());
+		entity.removeTag(MOB_SCAN_VULNERABILITY_TAG);
+		removeTagsWithPrefix(entity, MOB_SCAN_VULNERABILITY_VALUE_PREFIX);
+	}
+
+	private static ExplosiveVulnerabilityState resolveExplosiveVulnerability(LivingEntity entity) {
+		ExplosiveVulnerabilityState state = EXPLOSIVE_VULNERABILITY_BY_ENTITY.get(entity.getUUID());
+		if (state != null) {
+			return state;
+		}
+		Float vulnerability = readFloatTag(entity, EXPLOSIVE_VULNERABILITY_VALUE_PREFIX);
+		Long expiresAtGameTime = readLongTag(entity, EXPLOSIVE_VULNERABILITY_EXPIRES_PREFIX);
+		if (vulnerability == null || expiresAtGameTime == null) {
+			return null;
+		}
+		state = new ExplosiveVulnerabilityState(vulnerability, expiresAtGameTime);
+		EXPLOSIVE_VULNERABILITY_BY_ENTITY.put(entity.getUUID(), state);
+		return state;
+	}
+
+	private static void persistExplosiveVulnerability(LivingEntity entity, ExplosiveVulnerabilityState state) {
+		removeTagsWithPrefix(entity, EXPLOSIVE_VULNERABILITY_VALUE_PREFIX);
+		removeTagsWithPrefix(entity, EXPLOSIVE_VULNERABILITY_EXPIRES_PREFIX);
+		entity.addTag(EXPLOSIVE_VULNERABILITY_VALUE_PREFIX + Float.toString(state.vulnerability));
+		entity.addTag(EXPLOSIVE_VULNERABILITY_EXPIRES_PREFIX + Long.toString(state.expiresAtGameTime));
+	}
+
+	private static void clearExplosiveVulnerability(LivingEntity entity) {
+		EXPLOSIVE_VULNERABILITY_BY_ENTITY.remove(entity.getUUID());
+		removeTagsWithPrefix(entity, EXPLOSIVE_VULNERABILITY_VALUE_PREFIX);
+		removeTagsWithPrefix(entity, EXPLOSIVE_VULNERABILITY_EXPIRES_PREFIX);
+	}
+
+	private static Float readFloatTag(Entity entity, String prefix) {
+		for (String tag : entity.entityTags()) {
+			if (!tag.startsWith(prefix)) {
+				continue;
+			}
+			try {
+				float value = Float.parseFloat(tag.substring(prefix.length()));
+				return Float.isFinite(value) && value >= 0.0F ? value : null;
+			} catch (NumberFormatException ignored) {
+				return null;
+			}
+		}
+		return null;
+	}
+
+	private static Long readLongTag(Entity entity, String prefix) {
+		for (String tag : entity.entityTags()) {
+			if (!tag.startsWith(prefix)) {
+				continue;
+			}
+			try {
+				return Long.parseLong(tag.substring(prefix.length()));
+			} catch (NumberFormatException ignored) {
+				return null;
+			}
+		}
+		return null;
+	}
+
+	private static void removeTagsWithPrefix(Entity entity, String prefix) {
+		for (String tag : new ArrayList<>(entity.entityTags())) {
+			if (tag.startsWith(prefix)) {
+				entity.removeTag(tag);
+			}
+		}
 	}
 
 	public static boolean isWebStunned(Entity entity) {
@@ -627,7 +746,7 @@ public final class PetAbilitiesManager {
 		);
 		ACTIVE_REFLECTIVE_TAUNTS.put(player.getUUID(), state);
 		setSharedAbilityCooldown(player.getUUID(), PET_ABILITY_REFLECTIVE_TAUNT, abilitySlots, abilityCount, now + resolvedAbility.cooldownTicks);
-		level.playSound(null, center.getX(), center.getY(), center.getZ(), SoundEvents.BEACON_ACTIVATE, SoundSource.NEUTRAL, 0.8F, 0.65F);
+		level.playSound(null, center.getX(), center.getY(), center.getZ(), SoundEvents.BEACON_ACTIVATE, SoundSource.NEUTRAL, 2.0F, 1.0F);
 		sendReflectiveTauntVisual(server, state, center, true);
 		tauntNearbyHostiles(level, center, state);
 	}
@@ -1089,8 +1208,7 @@ public final class PetAbilitiesManager {
 			return;
 		}
 		for (Mob mob : attackers) {
-			resetDamageImmunity(mob);
-			boolean damaged = mob.hurtServer(level, owner.damageSources().playerAttack(owner), damagePerAttacker);
+			boolean damaged = applyPetAbilityDamage(level, owner, mob, damagePerAttacker);
 			if (!damaged && mob.isAlive()) {
 				mob.setHealth(Math.max(0.0F, mob.getHealth() - damagePerAttacker));
 			}
@@ -2013,6 +2131,8 @@ public final class PetAbilitiesManager {
 							&& scanArea.intersects(candidate.getBoundingBox())
 						)) {
 						mob.addTag(MOB_SCAN_VULNERABILITY_TAG);
+						removeTagsWithPrefix(mob, MOB_SCAN_VULNERABILITY_VALUE_PREFIX);
+						mob.addTag(MOB_SCAN_VULNERABILITY_VALUE_PREFIX + Float.toString(vulnerability));
 						MOB_SCAN_VULNERABILITY_BY_ENTITY.put(mob.getUUID(), vulnerability);
 						mob.addEffect(new MobEffectInstance(MobEffects.GLOWING, (int) glowingDurationTicks, 0, false, false, true));
 					}
@@ -3116,8 +3236,7 @@ public final class PetAbilitiesManager {
 					float baseDamage = Math.max(0.0F, ability.attackDamage > 0.0F ? ability.attackDamage : BEE_SWARM_DEFAULT_DAMAGE_PER_SECOND);
 					float damage = baseDamage + (nextDamageRampStep * BEE_SWARM_DAMAGE_RAMP_PER_SECOND);
 					if (damage > 0.0F) {
-						resetDamageImmunity(target);
-						target.hurtServer(level, owner.damageSources().playerAttack(owner), damage);
+						applyPetAbilityDamage(level, owner, target, damage);
 					}
 					nextDamageTick = gameplayTicks + BEE_SWARM_DAMAGE_INTERVAL_TICKS;
 					nextDamageRampStep++;
@@ -3463,7 +3582,7 @@ public final class PetAbilitiesManager {
 				target.setDeltaMovement(new Vec3(0.0D, movement.y, 0.0D));
 			}
 			if (damage > 0.0F) {
-				target.hurtServer(level, owner.damageSources().playerAttack(owner), damage);
+				applyPetAbilityDamage(level, owner, target, damage);
 				if (!(target instanceof Player)) {
 					Vec3 movement = target.getDeltaMovement();
 					target.setDeltaMovement(new Vec3(0.0D, movement.y, 0.0D));
@@ -3526,8 +3645,7 @@ public final class PetAbilitiesManager {
 				if (distance > radius) {
 					continue;
 				}
-				resetDamageImmunity(mob);
-				mob.hurtServer(level, owner.damageSources().playerAttack(owner), damage);
+				applyPetAbilityDamage(level, owner, mob, damage);
 				addExplosiveVulnerability(mob, vulnerability, vulnerabilityDurationTicks);
 				Vec3 knockback = mob.position().subtract(position);
 				if (knockback.lengthSqr() > 1.0E-6D) {
@@ -3567,8 +3685,7 @@ public final class PetAbilitiesManager {
 					continue;
 				}
 				Vec3 velocity = target.getDeltaMovement();
-				resetDamageImmunity(target);
-				if (target.hurtServer(level, owner.damageSources().playerAttack(owner), damage)) {
+				if (applyPetAbilityDamage(level, owner, target, damage)) {
 					target.setDeltaMovement(velocity);
 				}
 			}
@@ -3618,9 +3735,8 @@ public final class PetAbilitiesManager {
 					&& !isManagedPet(candidate)
 					&& candidate.position().distanceTo(position) <= radius
 			)) {
-				resetDamageImmunity(entity);
 				if (damage > 0.0F) {
-					entity.hurtServer(level, owner.damageSources().playerAttack(owner), damage);
+					applyPetAbilityDamage(level, owner, entity, damage);
 				}
 				if (horizontalKnockback > 0.0D || verticalKnockback > 0.0D) {
 					Vec3 direction = horizontalDirection;
@@ -3634,7 +3750,19 @@ public final class PetAbilitiesManager {
 			}
 		}
 
-			private static void resetDamageImmunity(LivingEntity entity) {
+		private static boolean applyPetAbilityDamage(ServerLevel level, ServerPlayer owner, LivingEntity target, float amount) {
+			if (level == null || owner == null || target == null || !target.isAlive() || amount <= 0.0F) {
+				return false;
+			}
+			resetDamageImmunity(target);
+			return target.hurtServer(
+				level,
+				owner.damageSources().source(PET_ABILITY_DAMAGE_TYPE, owner, owner),
+				amount
+			);
+		}
+
+		private static void resetDamageImmunity(LivingEntity entity) {
 			if (entity == null) {
 				return;
 			}
@@ -3979,7 +4107,7 @@ public final class PetAbilitiesManager {
 
 	private record ExplosiveVulnerabilityState(
 		float vulnerability,
-		long expiresAtTick
+		long expiresAtGameTime
 	) {}
 
 	private record ChickenEggProjectileState(

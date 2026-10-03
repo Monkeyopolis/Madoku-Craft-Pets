@@ -2,6 +2,8 @@ package madoku.craft.java.pet;
 
 import madoku.craft.java.core.iteminput.ItemInputFeatureAPIManager;
 import madoku.craft.java.core.iteminput.ItemInputFeatureAdapter;
+import madoku.craft.java.core.damage.DamageVulnerabilityFeatureAPIManager;
+import madoku.craft.java.core.damage.DamageVulnerabilityFeatureAdapter;
 import madoku.craft.java.core.loot.LootFeatureAPIManager;
 import madoku.craft.java.core.loot.LootFeatureAdapter;
 import madoku.craft.java.core.rarity.RarityAPIManager;
@@ -20,6 +22,12 @@ public final class MadokuPetsCoreAdapters {
 	}
 
 	public static void initialize() {
+		DamageVulnerabilityFeatureAPIManager.registerAdapter(new DamageVulnerabilityFeatureAdapter() {
+			@Override
+			public float getDamageVulnerabilityPercent(net.minecraft.world.entity.LivingEntity entity) {
+				return PetAbilitiesManager.getDamageVulnerabilityPercent(entity);
+			}
+		});
 		RarityEligibilityAPIManager.registerAdapter(new RarityEligibilityAdapter() {
 			@Override
 			public boolean isEligible(ItemStack stack) {

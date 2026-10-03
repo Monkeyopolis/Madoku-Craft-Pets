@@ -15,6 +15,7 @@ public final class MadokuPetAbilitiesProvider implements PetAbilitiesProvider {
 	@Override public void initialize() { PetAbilitiesManager.initialize(); }
 	@Override public float applyMobScanDamage(LivingEntity entity, float amount) { return PetAbilitiesManager.applyMobScanDamage(entity, amount); }
 	@Override public float applyDamageVulnerabilities(LivingEntity entity, float amount) { return PetAbilitiesManager.applyDamageVulnerabilities(entity, amount); }
+	@Override public float getDamageVulnerabilityPercent(LivingEntity entity) { return PetAbilitiesManager.getDamageVulnerabilityPercent(entity); }
 	@Override public boolean isWebStunned(Entity entity) { return PetAbilitiesManager.isWebStunned(entity); }
 	@Override public float scaleWebMovementSpeed(LivingEntity entity, float speed) { return PetAbilitiesManager.scaleWebMovementSpeed(entity, speed); }
 	@Override public Vec3 scaleWebMovement(LivingEntity entity, Vec3 movement) { return PetAbilitiesManager.scaleWebMovement(entity, movement); }

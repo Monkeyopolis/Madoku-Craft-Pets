@@ -1064,7 +1064,7 @@ public final class PetConfigManager {
 				if (usesRangedHomingArrow) {
 					ability.addProperty("attack-damage", 3.0D);
 					ability.addProperty("attack-speed", 3.0D);
-					ability.addProperty("projectile-count", 1.1D);
+					ability.addProperty("projectile-count", 1.2D);
 					ability.addProperty("projectile-interval-ticks", 10L);
 					ability.addProperty("lifetime", 15.0D);
 					ability.addProperty("cooldown", 5.0D);
@@ -1671,7 +1671,7 @@ public final class PetConfigManager {
 
 		private static double defaultProjectileCountForAbility(String abilityType) {
 			if (MadokuPetManager.PET_ABILITY_EGG_PROJECTILE.equals(abilityType)) return 3.0D;
-			if (MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType)) return 1.1D;
+			if (MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType)) return 1.2D;
 			return 1.0D;
 		}
 

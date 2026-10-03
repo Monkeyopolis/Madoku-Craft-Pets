@@ -15,6 +15,7 @@ public interface PetAbilitiesProvider {
 	default void initialize() { }
 	default float applyMobScanDamage(LivingEntity entity, float amount) { return amount; }
 	default float applyDamageVulnerabilities(LivingEntity entity, float amount) { return amount; }
+	default float getDamageVulnerabilityPercent(LivingEntity entity) { return 0.0F; }
 	default boolean isWebStunned(Entity entity) { return false; }
 	default float scaleWebMovementSpeed(LivingEntity entity, float speed) { return speed; }
 	default Vec3 scaleWebMovement(LivingEntity entity, Vec3 movement) { return movement; }
