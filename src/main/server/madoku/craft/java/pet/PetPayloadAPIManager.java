@@ -38,6 +38,29 @@ public final class PetPayloadAPIManager {
 		@Override public Type<LeftClickAirPayload> type() { return TYPE; }
 	}
 
+	public record ReflectiveTauntVisualPayload(
+		String centerEntityUuid,
+		String dimensionId,
+		long durationTicks,
+		double radius,
+		boolean active,
+		boolean outwardWave
+	) implements CustomPacketPayload {
+		public static final Type<ReflectiveTauntVisualPayload> TYPE =
+			new Type<>(Identifier.fromNamespaceAndPath("madoku-craft", "reflective_taunt_visual"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, ReflectiveTauntVisualPayload> CODEC = StreamCodec.composite(
+			ByteBufCodecs.stringUtf8(64), ReflectiveTauntVisualPayload::centerEntityUuid,
+			ByteBufCodecs.stringUtf8(128), ReflectiveTauntVisualPayload::dimensionId,
+			ByteBufCodecs.VAR_LONG, ReflectiveTauntVisualPayload::durationTicks,
+			ByteBufCodecs.DOUBLE, ReflectiveTauntVisualPayload::radius,
+			ByteBufCodecs.BOOL, ReflectiveTauntVisualPayload::active,
+			ByteBufCodecs.BOOL, ReflectiveTauntVisualPayload::outwardWave,
+			ReflectiveTauntVisualPayload::new
+		);
+
+		@Override public Type<ReflectiveTauntVisualPayload> type() { return TYPE; }
+	}
+
 	public record PetAbilityHudPayload(
 		int slot0Cooldown0, int slot0Cooldown1, int slot0Cooldown2,
 		int slot1Cooldown0, int slot1Cooldown1, int slot1Cooldown2,

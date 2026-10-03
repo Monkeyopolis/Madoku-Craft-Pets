@@ -37,7 +37,9 @@ public abstract class LivingEntityPetBehaviorMixin {
 		float amount,
 		CallbackInfoReturnable<Boolean> cir
 	) {
-		if (PetComponentsAPIManager.isManaged((Entity) (Object) this)) {
+		Entity entity = (Entity) (Object) this;
+		if (PetComponentsAPIManager.isManaged(entity) || PetAbilitiesAPIManager.isReflectiveTauntTarget(entity)) {
+			PetAbilitiesAPIManager.recordManagedPetDamage(entity, source, amount);
 			cir.setReturnValue(false);
 		}
 	}

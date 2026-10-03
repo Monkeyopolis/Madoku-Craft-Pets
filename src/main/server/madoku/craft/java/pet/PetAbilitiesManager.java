@@ -20,6 +20,7 @@ import madoku.craft.java.pet.PetComponentsAPIManager.PetInventory;
 import madoku.craft.java.pet.PetConfigManager.PetAbilityRule;
 import madoku.craft.java.pet.PetConfigManager.PetRule;
 import net.minecraft.resources.Identifier;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -32,6 +33,8 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -66,6 +69,10 @@ public final class PetAbilitiesManager {
 	private static final String PET_ABILITY_MOB_SCAN = MadokuPetManager.PET_ABILITY_MOB_SCAN;
 	private static final String PET_ABILITY_BEE_SWARM = MadokuPetManager.PET_ABILITY_BEE_SWARM;
 	private static final String PET_ABILITY_GOAT_CHARGE = MadokuPetManager.PET_ABILITY_GOAT_CHARGE;
+	private static final String PET_ABILITY_REFLECTIVE_TAUNT = MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT;
+	private static final String IRON_GOLEM_PET_ID = "minecraft:iron-golem";
+	private static final long REFLECTIVE_TAUNT_ATTACK_DELAY_TICKS = 10L;
+	private static final long REFLECTIVE_TAUNT_DAMAGE_WAVE_TICKS = 5L;
 	private static final int WEB_PROJECTILE_BASE_RICOCHETS = 3;
 	private static final double WEB_PROJECTILE_RICOCHET_RADIUS = 5.0D;
 	private static final double WEB_PROJECTILE_RICOCHET_RADIUS_PER_LEVEL = 0.5D;
@@ -122,6 +129,9 @@ public final class PetAbilitiesManager {
 	private static final double BEE_SWARM_ORBIT_VERTICAL_VARIANCE = 0.30D;
 	private static final double BEE_SWARM_MAX_MOVE_PER_TICK = 0.38D;
 	private static final double GOAT_CHARGE_IMPACT_DISTANCE = 1.15D;
+	private static final double REFLECTIVE_TAUNT_DUPLICATE_RADIUS = 1.0D;
+	private static final long REFLECTIVE_TAUNT_DUPLICATE_DURATION_TICKS = 20L;
+	private static final double REFLECTIVE_TAUNT_DUPLICATE_REFLECTION = 0.025D;
 	private static final Map<UUID, Map<Integer, Map<String, Long>>> PLAYER_ABILITY_COOLDOWNS = new HashMap<>();
 	private static final List<PendingPetAttack> PENDING_PET_ATTACKS = new ArrayList<>();
 	private static final Map<UUID, Long> NEXT_BEE_TARGET_SCAN_TICK = new HashMap<>();
@@ -134,6 +144,7 @@ public final class PetAbilitiesManager {
 	private static final Map<UUID, ChickenEggVolleyState> ACTIVE_CHICKEN_EGG_VOLLEYS = new ConcurrentHashMap<>();
 	private static final Map<String, BeeSwarmState> ACTIVE_BEE_SWARMS = new ConcurrentHashMap<>();
 	private static final Map<UUID, GoatChargeState> ACTIVE_GOAT_CHARGES = new ConcurrentHashMap<>();
+	private static final Map<UUID, ReflectiveTauntState> ACTIVE_REFLECTIVE_TAUNTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, Float> MOB_SCAN_VULNERABILITY_BY_ENTITY = new ConcurrentHashMap<>();
 	private static final Map<UUID, ExplosiveVulnerabilityState> EXPLOSIVE_VULNERABILITY_BY_ENTITY = new ConcurrentHashMap<>();
 
@@ -151,6 +162,7 @@ public final class PetAbilitiesManager {
 		ACTIVE_CHICKEN_EGG_VOLLEYS.clear();
 		ACTIVE_BEE_SWARMS.clear();
 		ACTIVE_GOAT_CHARGES.clear();
+		ACTIVE_REFLECTIVE_TAUNTS.clear();
 		MOB_SCAN_VULNERABILITY_BY_ENTITY.clear();
 		EXPLOSIVE_VULNERABILITY_BY_ENTITY.clear();
 	}
@@ -165,7 +177,8 @@ public final class PetAbilitiesManager {
 			|| !ACTIVE_CHICKEN_EGG_PROJECTILES.isEmpty()
 			|| !ACTIVE_CHICKEN_EGG_VOLLEYS.isEmpty()
 			|| !ACTIVE_BEE_SWARMS.isEmpty()
-			|| !ACTIVE_GOAT_CHARGES.isEmpty();
+			|| !ACTIVE_GOAT_CHARGES.isEmpty()
+			|| !ACTIVE_REFLECTIVE_TAUNTS.isEmpty();
 	}
 
 	static void tickWebControls(MinecraftServer server) {
@@ -297,6 +310,40 @@ public final class PetAbilitiesManager {
 		}
 	}
 
+	static void tickReflectiveTaunts(MinecraftServer server) {
+		if (server == null || ACTIVE_REFLECTIVE_TAUNTS.isEmpty()) {
+			return;
+		}
+
+		long now = TimeAPIManager.getGameplayTicks();
+		for (Map.Entry<UUID, ReflectiveTauntState> entry : ACTIVE_REFLECTIVE_TAUNTS.entrySet()) {
+			ReflectiveTauntState state = entry.getValue();
+			ServerPlayer owner = state == null ? null : server.getPlayerList().getPlayer(state.ownerUuid);
+			Entity center = state == null ? null : findEntity(server, state.centerEntityUuid);
+			if (state == null || owner == null || !owner.isAlive() || center == null || !center.isAlive()
+				|| center.level() != owner.level()
+				|| (state != null && state.damageWaveStarted && now >= state.waveUntilTick)) {
+				if (state != null) {
+					ACTIVE_REFLECTIVE_TAUNTS.remove(entry.getKey(), state);
+					finishReflectiveTaunt(server, owner, center, state);
+				}
+				continue;
+			}
+
+			ServerLevel level = (ServerLevel) center.level();
+			if (center instanceof LivingEntity livingCenter) {
+				if (now < state.untilTick) {
+					tauntNearbyHostiles(level, livingCenter, state);
+				} else if (!state.damageWaveStarted) {
+					state.damageWaveStarted = true;
+					state.waveStartedTick = now;
+					state.waveUntilTick = safeAdd(now, REFLECTIVE_TAUNT_DAMAGE_WAVE_TICKS);
+					sendReflectiveTauntVisual(server, state, center, true);
+				}
+			}
+		}
+	}
+
 	public static float applyMobScanDamage(LivingEntity entity, float amount) {
 		if (entity == null || amount <= 0.0F) {
 			return amount;
@@ -404,6 +451,7 @@ public final class PetAbilitiesManager {
 	public static void initialize() {
 		PetAbilitiesAPIManager.registerProvider(new MadokuPetAbilitiesProvider());
 		PayloadTypeRegistry.clientboundPlay().register(PetPayloadAPIManager.PetAbilityHudPayload.TYPE, PetPayloadAPIManager.PetAbilityHudPayload.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(PetPayloadAPIManager.ReflectiveTauntVisualPayload.TYPE, PetPayloadAPIManager.ReflectiveTauntVisualPayload.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(PetPayloadAPIManager.LeftClickAirPayload.TYPE, PetPayloadAPIManager.LeftClickAirPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(PetPayloadAPIManager.LeftClickAirPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
@@ -438,7 +486,8 @@ public final class PetAbilitiesManager {
 					MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION,
 					MadokuPetManager.PET_ABILITY_MOB_SCAN,
 					MadokuPetManager.PET_ABILITY_BEE_SWARM,
-					MadokuPetManager.PET_ABILITY_GOAT_CHARGE
+				MadokuPetManager.PET_ABILITY_GOAT_CHARGE,
+				MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT
 				};
 				for (String abilityType : abilityTypes) {
 					defaults.put(PetConfigManager.abilityConfigId(abilityType), PetConfigManager.PetRule.defaultsForAbility(abilityType));
@@ -503,6 +552,185 @@ public final class PetAbilitiesManager {
 
 	static void triggerReactiveAbilities(ServerPlayer player, LivingEntity target) {
 		triggerReactivePetAttacks(player, target);
+	}
+
+	private static void triggerReflectiveTaunt(ServerPlayer player, LivingEntity triggeringAttacker) {
+		if (player == null || !player.isAlive() || !isReflectiveTauntMob(triggeringAttacker)
+			|| triggeringAttacker.level() != player.level() || ACTIVE_REFLECTIVE_TAUNTS.containsKey(player.getUUID())) {
+			return;
+		}
+
+		PetInventory inventory = petInventory(player);
+		MinecraftServer server = player.level().getServer();
+		if (inventory == null || server == null) {
+			return;
+		}
+
+		long now = TimeAPIManager.getGameplayTicks();
+		synchronizeAllAbilityCooldowns(player, inventory, now);
+		int[] abilitySlots = new int[SLOT_COUNT];
+		int abilityCount = 0;
+		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
+			ItemStack stack = inventory.getItem(slot);
+			PetRule rule = PetConfigManager.resolvePetRule(stack);
+			if (rule == null || !rule.enabled || !IRON_GOLEM_PET_ID.equals(rule.petId)) {
+				continue;
+			}
+			PetAbilityRule ability = rule.ability(PET_ABILITY_REFLECTIVE_TAUNT);
+			if (ability == null || !ability.canPerformReactiveAttack()
+				|| !isAbilityOffCooldown(player, slot, ability.abilityType, now)
+				|| PetEntitiesManager.findPet(server, player.getUUID(), slot) == null) {
+				continue;
+			}
+
+			if (abilityCount < abilitySlots.length) {
+				abilitySlots[abilityCount++] = slot;
+			}
+		}
+		if (abilityCount <= 0) {
+			return;
+		}
+
+		PetAbilityRule resolvedAbility = resolveDuplicateAbilityRule(
+			inventory,
+			abilitySlots,
+			abilityCount,
+			PET_ABILITY_REFLECTIVE_TAUNT
+		);
+		if (resolvedAbility == null) {
+			return;
+		}
+
+		int duplicateCount = Math.max(0, abilityCount - 1);
+		double radius = Math.max(0.0D, resolvedAbility.tauntRadius + duplicateCount * REFLECTIVE_TAUNT_DUPLICATE_RADIUS);
+		long durationTicks = Math.max(0L, resolvedAbility.tauntDurationTicks + duplicateCount * REFLECTIVE_TAUNT_DUPLICATE_DURATION_TICKS);
+		double reflection = Math.max(0.0D, Math.min(1.0D,
+			resolvedAbility.reflectedDamageAmount + duplicateCount * REFLECTIVE_TAUNT_DUPLICATE_REFLECTION));
+		if (radius <= 0.0D || durationTicks <= 0L || reflection <= 0.0D) {
+			return;
+		}
+
+		ServerLevel level = (ServerLevel) player.level();
+		IronGolem center = spawnReflectiveTauntGolem(level, player.position(), player.getYRot());
+		if (center == null) {
+			return;
+		}
+
+		ReflectiveTauntState state = new ReflectiveTauntState(
+			player.getUUID(),
+			center.getUUID(),
+			center.level().dimension().toString(),
+			now,
+			safeAdd(now, durationTicks),
+			radius,
+			reflection
+		);
+		ACTIVE_REFLECTIVE_TAUNTS.put(player.getUUID(), state);
+		setSharedAbilityCooldown(player.getUUID(), PET_ABILITY_REFLECTIVE_TAUNT, abilitySlots, abilityCount, now + resolvedAbility.cooldownTicks);
+		level.playSound(null, center.getX(), center.getY(), center.getZ(), SoundEvents.BEACON_ACTIVATE, SoundSource.NEUTRAL, 0.8F, 0.65F);
+		sendReflectiveTauntVisual(server, state, center, true);
+		tauntNearbyHostiles(level, center, state);
+	}
+
+	public static void recordManagedPetDamage(Entity entity, net.minecraft.world.damagesource.DamageSource source, float amount) {
+		if (entity == null || amount <= 0.0F || !isReflectiveTauntTarget(entity)) {
+			return;
+		}
+		ReflectiveTauntState state = findReflectiveTauntState(entity);
+		Mob attacker = resolveHostileMob(source);
+		if (state == null || attacker == null || !isReflectiveTauntMob(attacker) || attacker.level() != entity.level() || !attacker.isAlive()) {
+			return;
+		}
+		long now = TimeAPIManager.getGameplayTicks();
+		if (now >= state.untilTick) {
+			// The collection phase has ended. Keep the golem protected while the
+			// visual damage wave travels outward, but do not store new damage.
+			return;
+		}
+		long nextHitTick = state.nextHitTickByAttacker.getOrDefault(attacker.getUUID(), Long.MIN_VALUE);
+		if (now < nextHitTick) {
+			return;
+		}
+		state.nextHitTickByAttacker.put(attacker.getUUID(), now + REFLECTIVE_TAUNT_ATTACK_DELAY_TICKS);
+		state.storedDamage += amount;
+		state.attackerIds.add(attacker.getUUID());
+		if (entity instanceof IronGolem golem && golem.level() instanceof ServerLevel level) {
+			level.playSound(null, golem.getX(), golem.getY(), golem.getZ(), SoundEvents.SHIELD_BLOCK, SoundSource.PLAYERS, 0.8F, 1.0F);
+		}
+	}
+
+	public static boolean isReflectiveTauntTarget(Entity entity) {
+		if (entity == null) {
+			return false;
+		}
+		ReflectiveTauntState state = findReflectiveTauntState(entity);
+		return state != null && TimeAPIManager.getGameplayTicks() < state.waveUntilTick;
+	}
+
+	/**
+	 * Returns the active reflective-taunt center that must remain the mob's target.
+	 * This is queried from Mob#setTarget so vanilla target goals cannot immediately
+	 * replace the taunt with the player or another target.
+	 */
+	public static LivingEntity reflectiveTauntTargetFor(Mob mob) {
+		if (mob == null || !mob.isAlive() || !isReflectiveTauntMob(mob) || mob.level().getServer() == null) {
+			return null;
+		}
+
+		MinecraftServer server = mob.level().getServer();
+		long now = TimeAPIManager.getGameplayTicks();
+		for (ReflectiveTauntState state : ACTIVE_REFLECTIVE_TAUNTS.values()) {
+			if (state == null || now >= state.waveUntilTick) {
+				continue;
+			}
+			Entity center = findEntity(server, state.centerEntityUuid);
+			if (center instanceof LivingEntity livingCenter
+				&& livingCenter.isAlive()
+				&& center.level() == mob.level()
+				&& mob.distanceToSqr(center) <= state.radius * state.radius) {
+				return livingCenter;
+			}
+		}
+		return null;
+	}
+
+	static void stopReflectiveTauntForOwner(MinecraftServer server, UUID ownerId) {
+		if (ownerId == null) {
+			return;
+		}
+		ReflectiveTauntState state = ACTIVE_REFLECTIVE_TAUNTS.remove(ownerId);
+		if (state != null) {
+			finishReflectiveTaunt(server, null, findEntity(server, state.centerEntityUuid), state);
+		}
+	}
+
+	private static void sendReflectiveTauntVisual(
+		MinecraftServer server,
+		ReflectiveTauntState state,
+		Entity center,
+		boolean active
+	) {
+		if (server == null || state == null) {
+			return;
+		}
+		PetPayloadAPIManager.ReflectiveTauntVisualPayload payload = new PetPayloadAPIManager.ReflectiveTauntVisualPayload(
+			state.centerEntityUuid.toString(),
+			state.dimensionId,
+			Math.max(0L, (state.damageWaveStarted ? state.waveUntilTick : state.untilTick)
+				- (state.damageWaveStarted ? state.waveStartedTick : state.startedTick)),
+			Math.max(0.0D, state.radius),
+			active,
+			state.damageWaveStarted
+		);
+		double viewDistance = center == null ? Double.POSITIVE_INFINITY : Math.max(32.0D, state.radius + 16.0D);
+		double viewDistanceSquared = viewDistance * viewDistance;
+		for (ServerPlayer viewer : server.getPlayerList().getPlayers()) {
+			if (!state.dimensionId.equals(viewer.level().dimension().toString())
+				|| (center != null && viewer.distanceToSqr(center) > viewDistanceSquared)) {
+				continue;
+			}
+			ServerPlayNetworking.send(viewer, payload);
+		}
 	}
 
 	/** Handles a server-side main-hand left-click for multi-ability pets. */
@@ -633,6 +861,9 @@ public final class PetAbilitiesManager {
 		if (entity instanceof ServerPlayer playerVictim) {
 			LivingEntity attackerTarget = resolveDamageSourceLivingEntity(source);
 			if (attackerTarget != null) {
+				if (isHostileMob(attackerTarget)) {
+					triggerReflectiveTaunt(playerVictim, attackerTarget);
+				}
 				triggerReactiveAbilities(playerVictim, attackerTarget);
 			}
 		}
@@ -734,6 +965,165 @@ public final class PetAbilitiesManager {
 			return;
 		}
 		player.heal((float) (player.getMaxHealth() * healPercentage));
+	}
+
+	private static IronGolem spawnReflectiveTauntGolem(ServerLevel level, Vec3 position, float yRot) {
+		if (level == null || position == null) {
+			return null;
+		}
+		Entity created = BuiltInRegistries.ENTITY_TYPE
+			.getValue(Identifier.fromNamespaceAndPath("minecraft", "iron_golem"))
+			.create(level, EntitySpawnReason.EVENT);
+		if (!(created instanceof IronGolem golem)) {
+			return null;
+		}
+		golem.snapTo(position.x, position.y, position.z, yRot, 0.0F);
+		golem.setNoAi(true);
+		golem.setNoGravity(true);
+		// Keep normal entity/projectile collision enabled so arrows can hit the
+		// temporary taunt target and contribute to the reflected damage.
+		golem.noPhysics = false;
+		golem.setPermanentlyInvulnerable(false);
+		golem.setPersistenceRequired();
+		golem.setPlayerCreated(true);
+		if (!level.addFreshEntity(golem)) {
+			return null;
+		}
+		return golem;
+	}
+
+	private static ReflectiveTauntState findReflectiveTauntState(Entity entity) {
+		if (entity == null) {
+			return null;
+		}
+		for (ReflectiveTauntState state : ACTIVE_REFLECTIVE_TAUNTS.values()) {
+			if (state != null && entity.getUUID().equals(state.centerEntityUuid)) {
+				return state;
+			}
+		}
+		return null;
+	}
+
+	private static void tauntNearbyHostiles(ServerLevel level, LivingEntity center, ReflectiveTauntState state) {
+		if (level == null || center == null || state == null || state.radius <= 0.0D) {
+			return;
+		}
+		double radiusSquared = state.radius * state.radius;
+		AABB area = center.getBoundingBox().inflate(state.radius);
+		for (Mob mob : level.getEntitiesOfClass(Mob.class, area, candidate ->
+			candidate != null
+				&& candidate.isAlive()
+				&& isReflectiveTauntMob(candidate)
+				&& !isManagedPet(candidate)
+				&& candidate.distanceToSqr(center) <= radiusSquared
+		)) {
+			state.previousTargets.putIfAbsent(mob.getUUID(), mob.getTarget());
+			if (mob instanceof NeutralMob neutralMob) {
+				state.previousNeutralMobStates.putIfAbsent(
+					mob.getUUID(),
+					new NeutralMobState(neutralMob.getPersistentAngerTarget(), neutralMob.getPersistentAngerEndTime())
+				);
+			}
+			mob.setTarget(center);
+		}
+	}
+
+	private static void finishReflectiveTaunt(
+		MinecraftServer server,
+		ServerPlayer owner,
+		Entity center,
+		ReflectiveTauntState state
+	) {
+		if (state == null) {
+			return;
+		}
+		sendReflectiveTauntVisual(server, state, center, false);
+		if (server != null) {
+			for (Map.Entry<UUID, LivingEntity> entry : state.previousTargets.entrySet()) {
+				LivingEntity entity = findLivingEntity(server, entry.getKey());
+				if (entity instanceof Mob mob) {
+					if (center == null || mob.getTarget() == center) {
+						mob.setTarget(entry.getValue());
+					}
+					if (mob instanceof NeutralMob neutralMob) {
+						NeutralMobState previousNeutralMobState = state.previousNeutralMobStates.get(entry.getKey());
+						if (previousNeutralMobState != null) {
+							neutralMob.setPersistentAngerTarget(previousNeutralMobState.angerTarget());
+							neutralMob.setPersistentAngerEndTime(previousNeutralMobState.angerEndTime());
+						}
+					}
+				}
+			}
+		}
+
+		ServerLevel level = center != null && center.level() instanceof ServerLevel centerLevel
+			? centerLevel
+			: findLevel(server, state.dimensionId);
+		if (owner == null || level == null || state.storedDamage <= 0.0F || state.attackerIds.isEmpty()) {
+			if (center instanceof IronGolem golem && !golem.isRemoved()) {
+				golem.discard();
+			}
+			return;
+		}
+
+		List<Mob> attackers = new ArrayList<>();
+		for (UUID attackerId : state.attackerIds) {
+			LivingEntity entity = findLivingEntity(server, attackerId);
+			if (entity instanceof Mob mob && mob.isAlive() && mob instanceof Enemy && mob.level() == level) {
+				attackers.add(mob);
+			}
+		}
+		if (attackers.isEmpty()) {
+			if (center instanceof IronGolem golem && !golem.isRemoved()) {
+				golem.discard();
+			}
+			return;
+		}
+
+		float reflectedDamage = (float) Math.max(0.0D, state.storedDamage * state.reflectionPercentage);
+		float damagePerAttacker = reflectedDamage / attackers.size();
+		if (damagePerAttacker <= 0.0F) {
+			if (center instanceof IronGolem golem && !golem.isRemoved()) {
+				golem.discard();
+			}
+			return;
+		}
+		for (Mob mob : attackers) {
+			resetDamageImmunity(mob);
+			boolean damaged = mob.hurtServer(level, owner.damageSources().playerAttack(owner), damagePerAttacker);
+			if (!damaged && mob.isAlive()) {
+				mob.setHealth(Math.max(0.0F, mob.getHealth() - damagePerAttacker));
+			}
+			// Emit this for every reflected-damage recipient, including entities
+			// whose normal hurt call was blocked and required the health fallback.
+			level.sendParticles(
+				ParticleTypes.ENCHANTED_HIT,
+				mob.getX(),
+				mob.getY() + mob.getBbHeight() * 0.5D,
+				mob.getZ(),
+				16,
+				Math.max(0.15D, mob.getBbWidth() * 0.35D),
+				Math.max(0.20D, mob.getBbHeight() * 0.25D),
+				Math.max(0.15D, mob.getBbWidth() * 0.35D),
+				0.20D
+			);
+		}
+		if (center instanceof IronGolem golem && !golem.isRemoved()) {
+			golem.discard();
+		}
+	}
+
+	private static boolean isHostileMob(LivingEntity entity) {
+		return entity instanceof Mob && entity instanceof Enemy;
+	}
+
+	private static boolean isReflectiveTauntMob(LivingEntity entity) {
+		return isHostileMob(entity) && !(entity instanceof Creeper);
+	}
+
+	private static Mob resolveHostileMob(net.minecraft.world.damagesource.DamageSource source) {
+		LivingEntity attacker = resolveDamageSourceLivingEntity(source);
+		return isHostileMob(attacker) ? (Mob) attacker : null;
 	}
 
 	private static LivingEntity resolveDamageSourceLivingEntity(net.minecraft.world.damagesource.DamageSource source) {
@@ -2862,17 +3252,23 @@ public final class PetAbilitiesManager {
 
 		}
 
-			private static LivingEntity findLivingEntity(MinecraftServer server, UUID entityId) {
+		private static Entity findEntity(MinecraftServer server, UUID entityId) {
 			if (server == null || entityId == null) {
 				return null;
 			}
 
 			for (ServerLevel level : server.getAllLevels()) {
-				if (level.getEntity(entityId) instanceof LivingEntity livingEntity && livingEntity.isAlive()) {
-					return livingEntity;
+				Entity entity = level.getEntity(entityId);
+				if (entity != null) {
+					return entity;
 				}
 			}
 			return null;
+		}
+
+		private static LivingEntity findLivingEntity(MinecraftServer server, UUID entityId) {
+			Entity entity = findEntity(server, entityId);
+			return entity instanceof LivingEntity livingEntity && livingEntity.isAlive() ? livingEntity : null;
 		}
 
 			private static Vec3 resolveWebProjectileTargetPosition(LivingEntity target) {
@@ -3668,6 +4064,50 @@ public final class PetAbilitiesManager {
 				originalNoPhysics
 			);
 		}
+	}
+
+	private static final class ReflectiveTauntState {
+		private final UUID ownerUuid;
+		private final UUID centerEntityUuid;
+		private final String dimensionId;
+		private final long startedTick;
+		private final long untilTick;
+		private final double radius;
+		private final double reflectionPercentage;
+		private long waveStartedTick;
+		private long waveUntilTick;
+		private boolean damageWaveStarted;
+		private float storedDamage;
+		private final Set<UUID> attackerIds = new LinkedHashSet<>();
+		private final Map<UUID, Long> nextHitTickByAttacker = new LinkedHashMap<>();
+		private final Map<UUID, LivingEntity> previousTargets = new LinkedHashMap<>();
+		private final Map<UUID, NeutralMobState> previousNeutralMobStates = new LinkedHashMap<>();
+
+		private ReflectiveTauntState(
+			UUID ownerUuid,
+			UUID centerEntityUuid,
+			String dimensionId,
+			long startedTick,
+			long untilTick,
+			double radius,
+			double reflectionPercentage
+		) {
+			this.ownerUuid = ownerUuid;
+			this.centerEntityUuid = centerEntityUuid;
+			this.dimensionId = dimensionId;
+			this.startedTick = startedTick;
+			this.untilTick = untilTick;
+			this.radius = radius;
+			this.reflectionPercentage = reflectionPercentage;
+			this.waveStartedTick = untilTick;
+			this.waveUntilTick = untilTick;
+		}
+	}
+
+	private record NeutralMobState(
+		EntityReference<LivingEntity> angerTarget,
+		long angerEndTime
+	) {
 	}
 	private static UUID parseUuid(String value) {
 			if (value == null || value.isBlank()) {

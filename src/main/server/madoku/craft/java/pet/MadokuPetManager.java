@@ -53,6 +53,7 @@ public final class MadokuPetManager {
 	static final String PET_ABILITY_MOB_SCAN = "mob_scan";
 	static final String PET_ABILITY_BEE_SWARM = "bee_swarm";
 	static final String PET_ABILITY_GOAT_CHARGE = "goat_charge";
+	static final String PET_ABILITY_REFLECTIVE_TAUNT = "reflective_taunt";
 	static final String PET_RARITY_COMMON = RarityAPIManager.Tier.COMMON.id();
 	static final String PET_RARITY_RARE = RarityAPIManager.Tier.RARE.id();
 	static final String PET_RARITY_EPIC = RarityAPIManager.Tier.EPIC.id();
@@ -209,6 +210,7 @@ public final class MadokuPetManager {
 		PetAbilitiesManager.tickManagedChickenEggProjectiles(server);
 		PetAbilitiesManager.tickManagedBeeSwarms(server);
 		PetAbilitiesManager.tickGoatCharges(server);
+		PetAbilitiesManager.tickReflectiveTaunts(server);
 		PetAbilitiesManager.tickPendingPetAttacks(server);
 		PetHudManager.flushAbilityHudSyncs(server);
 	}
@@ -295,6 +297,7 @@ public final class MadokuPetManager {
 
 		PetEntitiesManager.removeAllPets(server, playerId);
 		PetAbilitiesManager.stopBeeSwarmsForOwner(playerId);
+		PetAbilitiesManager.stopReflectiveTauntForOwner(server, playerId);
 		NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);
 		LAST_TELEPORT_STAMPS_BY_PLAYER.remove(playerId);
 		PetHudManager.clearPlayer(playerId);

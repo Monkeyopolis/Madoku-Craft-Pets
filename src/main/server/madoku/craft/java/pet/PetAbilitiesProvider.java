@@ -3,6 +3,7 @@ package madoku.craft.java.pet;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.HitResult;
@@ -33,5 +34,8 @@ public interface PetAbilitiesProvider {
 	default void applyPlayerMaxHealthAbilityBonus(ServerPlayer player) { }
 	default void applyPlayerDamageAbilityBonus(ServerPlayer player) { }
 	default boolean hasAbility(Entity entity) { return false; }
+	default void recordManagedPetDamage(Entity entity, DamageSource source, float amount) { }
+	default boolean isReflectiveTauntTarget(Entity entity) { return false; }
+	default LivingEntity reflectiveTauntTargetFor(Mob mob) { return null; }
 	default boolean handleManagedChickenEggImpact(Entity projectile, HitResult hitResult) { return false; }
 }

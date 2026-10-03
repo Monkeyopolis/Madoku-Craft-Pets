@@ -16,11 +16,14 @@ public final class MadokuPetClient {
 	public static void initialize() {
 		PetMenuClient.initialize();
 		PetHudManagerClient.initialize();
+		PetReflectiveTauntRenderer.initialize();
 		MadokuEntitiesClient.initialize();
 		PetRendererManager.initialize();
 		MerchantEggVariantsClient.initialize();
 		ClientPlayNetworking.registerGlobalReceiver(PetPayloadAPIManager.PetAbilityHudPayload.TYPE,
 			(payload, context) -> PetHudManagerClient.setAbilityCooldowns(payload.asArray()));
+		ClientPlayNetworking.registerGlobalReceiver(PetPayloadAPIManager.ReflectiveTauntVisualPayload.TYPE,
+			(payload, context) -> PetReflectiveTauntRenderer.accept(payload));
 		ClientPlayNetworking.registerGlobalReceiver(PetPayloadAPIManager.PetInventoryPayload.TYPE, (payload, context) -> {
 			if (!(Minecraft.getInstance().player instanceof PetHolder holder)) return;
 			PetInventory inventory = holder.madokuCraft$getPetInventory();

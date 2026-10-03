@@ -1,5 +1,6 @@
 package madoku.craft.mixin.pet;
 
+import madoku.craft.java.pet.PetAbilitiesAPIManager;
 import madoku.craft.java.pet.PetComponentsAPIManager;
 import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -26,7 +27,10 @@ public abstract class EntityPetBehaviorMixin {
 
 	@Inject(method = "isAttackable", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$disablePetAttackability(CallbackInfoReturnable<Boolean> cir) {
-		if (PetComponentsAPIManager.isManaged((Entity) (Object) this)) {
+		Entity entity = (Entity) (Object) this;
+		if (PetAbilitiesAPIManager.isReflectiveTauntTarget(entity)) {
+			cir.setReturnValue(true);
+		} else if (PetComponentsAPIManager.isManaged(entity)) {
 			cir.setReturnValue(false);
 		}
 	}

@@ -83,7 +83,7 @@ public final class PetEntitiesManager {
 		if (itemsRegistered) return;
 		String[] petIds = {
 			"minecraft:bat", "minecraft:bee", "minecraft:chicken", "minecraft:cow", "minecraft:creeper",
-			"minecraft:goat", "minecraft:pig", "minecraft:sheep", "minecraft:skeleton", "minecraft:spider", "minecraft:zombie"
+			"minecraft:goat", "minecraft:iron-golem", "minecraft:pig", "minecraft:sheep", "minecraft:skeleton", "minecraft:spider", "minecraft:zombie"
 		};
 		for (String petId : petIds) {
 			String itemPath = PetConfigManager.petItemPath(petId);
@@ -147,9 +147,10 @@ public final class PetEntitiesManager {
 					EntitiesConfigManager::isSupportedPetRuleFile,
 					null
 				);
+				Map<String, JsonObject> canonicalFiles = canonicalizeFileKeys(normalizedFiles);
 				Map<String, JsonObject> abilityDefinitions = PetAbilitiesManager.AbilitiesConfigManager.definitions();
 				Map<String, PetRule> resolved = new LinkedHashMap<>();
-				for (Map.Entry<String, JsonObject> entry : normalizedFiles.entrySet()) {
+				for (Map.Entry<String, JsonObject> entry : canonicalFiles.entrySet()) {
 					String fileKey = entry.getKey();
 					JsonObject sourceRoot = entry.getValue();
 					String petId = PetConfigManager.resolvePetId(fileKey, sourceRoot);
@@ -171,7 +172,7 @@ public final class PetEntitiesManager {
 					}
 				}
 				rules = Map.copyOf(resolved);
-				sourceFiles = copySourceFiles(normalizedFiles);
+				sourceFiles = copySourceFiles(canonicalFiles);
 			} catch (IOException | RuntimeException exception) {
 				rules = Map.of();
 				sourceFiles = Map.of();
@@ -215,6 +216,20 @@ public final class PetEntitiesManager {
 			return Map.copyOf(copy);
 		}
 
+		private static Map<String, JsonObject> canonicalizeFileKeys(Map<String, JsonObject> source) {
+			Map<String, JsonObject> canonical = new LinkedHashMap<>();
+			if (source == null) return Map.of();
+			for (Map.Entry<String, JsonObject> entry : source.entrySet()) {
+				String rawKey = entry.getKey();
+				String canonicalKey = PetConfigManager.normalizeFileKey(rawKey);
+				if (canonicalKey.isBlank() || entry.getValue() == null) continue;
+				if (!canonical.containsKey(canonicalKey) || canonicalKey.equals(rawKey)) {
+					canonical.put(canonicalKey, entry.getValue());
+				}
+			}
+			return Map.copyOf(canonical);
+		}
+
 		static PetRule resolve(String itemId) {
 			String normalizedItemId = PetConfigManager.normalizeKey(itemId);
 			if (normalizedItemId.isEmpty()) return null;
@@ -239,6 +254,7 @@ public final class PetEntitiesManager {
 			));
 			defaults.put("creeper", PetRule.defaultsForEntity("minecraft:creeper", MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE));
 			defaults.put("goat", PetRule.defaultsForEntity("minecraft:goat", MadokuPetManager.PET_ABILITY_GOAT_CHARGE));
+			defaults.put("iron-golem", PetRule.defaultsForEntity("minecraft:iron-golem", MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT));
 			defaults.put("pig", PetRule.defaultsForEntity("minecraft:pig", MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS));
 			defaults.put("sheep", PetRule.defaultsForEntity("minecraft:sheep", MadokuPetManager.PET_ABILITY_DAMAGE_REDUCTION));
 			defaults.put("skeleton", PetRule.defaultsForEntity("minecraft:skeleton", MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW));
@@ -394,6 +410,10 @@ public final class PetEntitiesManager {
 
 	static MadokuPetEntity findPet(MinecraftServer server, UUID entityId) {
 		return findMob(server, entityId) instanceof MadokuPetEntity pet ? pet : null;
+	}
+
+	static MadokuPetEntity findPet(MinecraftServer server, UUID ownerId, int slot) {
+		return findPetForOwnerAndSlot(server, ownerId, slot);
 	}
 
 	private static MadokuPetEntity findPetForOwnerAndSlot(MinecraftServer server, UUID ownerId, int slot) {

@@ -79,7 +79,8 @@ public final class MadokuPetEntity extends PathfinderMob {
 	}
 
 	public void setPetId(String petId) {
-		entityData.set(PET_ID, petId == null ? "" : petId);
+		entityData.set(PET_ID, PetConfigManager.normalizePetId(petId));
+		setPermanentlyInvulnerable(true);
 		refreshNavigation();
 	}
 

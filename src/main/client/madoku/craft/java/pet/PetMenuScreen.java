@@ -19,6 +19,7 @@ public final class PetMenuScreen extends AbstractContainerScreen<PetMenu> {
 	private static final Identifier PET_SLOT_TEXTURE = texture("shared-ui/pet-slot.png");
 	private static final Identifier UPGRADE_TEXTURE = texture("shared-ui/upgrade-button.png");
 	private static final Identifier UPGRADE_HIGHLIGHTED_TEXTURE = texture("shared-ui/upgrade-button-highlighted.png");
+	private static final Identifier UPGRADE_LOCKED_TEXTURE = texture("shared-ui/upgrade-button-locked.png");
 	private static final Identifier EXIT_TEXTURE = texture("shared-ui/exit-button.png");
 	private static final Identifier EXIT_HIGHLIGHTED_TEXTURE = texture("shared-ui/exit-button-highlighted.png");
 	private static final int PANEL_WIDTH = 176;
@@ -29,7 +30,7 @@ public final class PetMenuScreen extends AbstractContainerScreen<PetMenu> {
 	private static final int UPGRADE_BUTTON_X = 76;
 	private static final int UPGRADE_BUTTON_Y = 103;
 	private static final int UPGRADE_BUTTON_WIDTH = 54;
-    private static final int UPGRADE_BUTTON_HEIGHT = 14;
+	private static final int UPGRADE_BUTTON_HEIGHT = 14;
 	private static final int EXIT_X = 157;
 	private static final int EXIT_Y = 7;
 	private static final int EXIT_SIZE = 12;
@@ -66,9 +67,12 @@ public final class PetMenuScreen extends AbstractContainerScreen<PetMenu> {
 		drawUpgradeRequirements(graphics, requirements);
 
 		boolean upgradeHovered = requirements.canUpgrade() && contains(leftPos + UPGRADE_BUTTON_X, topPos + UPGRADE_BUTTON_Y, UPGRADE_BUTTON_WIDTH, UPGRADE_BUTTON_HEIGHT, mouseX, mouseY);
+		Identifier upgradeTexture = !requirements.canUpgrade()
+			? UPGRADE_LOCKED_TEXTURE
+			: upgradeHovered ? UPGRADE_HIGHLIGHTED_TEXTURE : UPGRADE_TEXTURE;
 		graphics.blit(
 			RenderPipelines.GUI_TEXTURED,
-			upgradeHovered ? UPGRADE_HIGHLIGHTED_TEXTURE : UPGRADE_TEXTURE,
+			upgradeTexture,
 			leftPos + UPGRADE_BUTTON_X,
 			topPos + UPGRADE_BUTTON_Y,
 			0.0F,
@@ -94,7 +98,7 @@ public final class PetMenuScreen extends AbstractContainerScreen<PetMenu> {
 			EXIT_SIZE
 		);
 		drawCenteredText(graphics, Component.translatable("menu.madoku-craft.pets.title").getString(), 20, 7);
-		drawCenteredText(graphics, Component.translatable("menu.madoku-craft.pets.upgrade").getString(), 103, 7);
+		drawCenteredText(graphics, Component.translatable("menu.madoku-craft.pets.upgrade_title").getString(), 103, 7);
 	}
 
 	@Override

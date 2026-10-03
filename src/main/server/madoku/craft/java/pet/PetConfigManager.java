@@ -93,6 +93,7 @@ public final class PetConfigManager {
 			case MadokuPetManager.PET_ABILITY_GOAT_CHARGE -> "Goat Charge:";
 			case MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW -> "Homing Arrow:";
 			case MadokuPetManager.PET_ABILITY_MOB_SCAN -> "Mob Scan:";
+			case MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT -> "Reflective Taunt:";
 			default -> abilityType == null || abilityType.isBlank() ? "Cooldown:" : abilityType + ":";
 		};
 	}
@@ -142,7 +143,8 @@ public final class PetConfigManager {
 				MadokuPetManager.PET_ABILITY_EGG_PROJECTILE,
 				MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION,
 				MadokuPetManager.PET_ABILITY_MOB_SCAN,
-				MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION -> ABILITY_TYPE_SHARED;
+				MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION,
+				MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT -> ABILITY_TYPE_SHARED;
 			default -> ABILITY_TYPE_STANDALONE;
 		};
 	}
@@ -332,6 +334,7 @@ public final class PetConfigManager {
 		if ("minecraft:spider".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_WEB_PROJECTILE;
 		if ("minecraft:creeper".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE;
 		if ("minecraft:goat".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_GOAT_CHARGE;
+		if ("minecraft:iron-golem".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT;
 		if ("minecraft:zombie".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS;
 		return MadokuPetManager.PET_ABILITY_NONE;
 	}
@@ -341,6 +344,7 @@ public final class PetConfigManager {
 		if ("minecraft:bat".equals(normalizedItemId)) return 0.3D;
 		if ("minecraft:bee".equals(normalizedItemId)) return 0.3D;
 		if ("minecraft:chicken".equals(normalizedItemId)) return 0.3D;
+		if ("minecraft:iron-golem".equals(normalizedItemId)) return 0.35D;
 		return 0.25D;
 	}
 
@@ -362,7 +366,8 @@ public final class PetConfigManager {
 		if ("minecraft:goat".equals(normalizedItemId)
 			|| "minecraft:creeper".equals(normalizedItemId)
 			|| "minecraft:skeleton".equals(normalizedItemId)
-			|| "minecraft:spider".equals(normalizedItemId)) return MadokuPetManager.PET_RARITY_RARE;
+			|| "minecraft:spider".equals(normalizedItemId)
+			|| "minecraft:iron-golem".equals(normalizedItemId)) return MadokuPetManager.PET_RARITY_RARE;
 		return MadokuPetManager.PET_RARITY_COMMON;
 	}
 
@@ -388,7 +393,7 @@ public final class PetConfigManager {
 	}
 
 	static String normalizeFileKey(String rawKey) {
-		return rawKey == null ? "" : rawKey.trim().toLowerCase();
+		return rawKey == null ? "" : rawKey.trim().toLowerCase().replace('_', '-');
 	}
 
 	static String normalizePetRarity(String rawRarity) {
@@ -570,6 +575,9 @@ public final class PetConfigManager {
 		final long projectileIntervalTicks;
 		final long lifetimeTicks;
 		final long effectDurationTicks;
+		final double tauntRadius;
+		final long tauntDurationTicks;
+		final double reflectedDamageAmount;
 		final long stunDurationTicks;
 		final long slowDurationTicks;
 		final double slowPercentage;
@@ -605,6 +613,9 @@ public final class PetConfigManager {
 			long projectileIntervalTicks,
 			long lifetimeTicks,
 			long effectDurationTicks,
+			double tauntRadius,
+			long tauntDurationTicks,
+			double reflectedDamageAmount,
 			long stunDurationTicks,
 			long slowDurationTicks,
 			double slowPercentage,
@@ -642,6 +653,9 @@ public final class PetConfigManager {
 			this.projectileIntervalTicks = projectileIntervalTicks;
 			this.lifetimeTicks = lifetimeTicks;
 			this.effectDurationTicks = effectDurationTicks;
+			this.tauntRadius = tauntRadius;
+			this.tauntDurationTicks = tauntDurationTicks;
+			this.reflectedDamageAmount = reflectedDamageAmount;
 			this.stunDurationTicks = stunDurationTicks;
 			this.slowDurationTicks = slowDurationTicks;
 			this.slowPercentage = slowPercentage;
@@ -681,6 +695,9 @@ public final class PetConfigManager {
 
 		boolean canPerformReactiveAttack() {
 			if (attackSpeed <= 0.0F || cooldownTicks <= 0L) return false;
+			if (MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT.equals(abilityType)) {
+				return tauntRadius > 0.0D && tauntDurationTicks > 0L && reflectedDamageAmount > 0.0D;
+			}
 			if (MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType)) return attackDamage > 0.0F;
 			if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) return true;
 			if (MadokuPetManager.PET_ABILITY_GOAT_CHARGE.equals(abilityType)) {
@@ -711,11 +728,20 @@ public final class PetConfigManager {
 			double resolvedDamageBlock = damageBlockAmount;
 			double resolvedHealthRegeneration = healthRegenerationAmount;
 			long resolvedEffectDurationTicks = effectDurationTicks;
+			double resolvedTauntRadius = tauntRadius;
+			long resolvedTauntDurationTicks = tauntDurationTicks;
+			double resolvedReflectedDamageAmount = reflectedDamageAmount;
 			if (MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK.equals(abilityType)) {
 				resolvedDamageBlock += (Math.max(1, level) - 1) * 2.0D;
 			}
 			if (MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION.equals(abilityType)) {
 				resolvedHealthRegeneration += (Math.max(1, level) - 1) * 0.01D;
+			}
+			if (MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT.equals(abilityType)) {
+				int levelDelta = Math.max(1, level) - 1;
+				resolvedTauntRadius += levelDelta * 0.5D;
+				resolvedTauntDurationTicks += levelDelta * 10L;
+				resolvedReflectedDamageAmount += levelDelta * 0.0125D;
 			}
 			double resolvedExplosionRadius = explosionRadius;
 			long resolvedStunDurationTicks = stunDurationTicks;
@@ -781,6 +807,9 @@ public final class PetConfigManager {
 				projectileIntervalTicks,
 				lifetimeTicks,
 				resolvedEffectDurationTicks,
+				resolvedTauntRadius,
+				resolvedTauntDurationTicks,
+				resolvedReflectedDamageAmount,
 				resolvedStunDurationTicks,
 				resolvedSlowDurationTicks,
 				resolvedSlowPercentage,
@@ -819,6 +848,9 @@ public final class PetConfigManager {
 				projectileIntervalTicks,
 				lifetimeTicks,
 				effectDurationTicks,
+				tauntRadius,
+				tauntDurationTicks,
+				reflectedDamageAmount,
 				stunDurationTicks,
 				slowDurationTicks,
 				slowPercentage,
@@ -1020,6 +1052,7 @@ public final class PetConfigManager {
 				boolean usesMobScan = MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(resolvedAbilityType);
 				boolean usesBeeSwarm = MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(resolvedAbilityType);
 				boolean usesGoatCharge = MadokuPetManager.PET_ABILITY_GOAT_CHARGE.equals(resolvedAbilityType);
+				boolean usesReflectiveTaunt = MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT.equals(resolvedAbilityType);
 				JsonObject ability = madoku.craft.java.core.json.JSONFormatAPIManager.object()
 					.put("id", abilityConfigId(resolvedAbilityType))
 					.put("ability-type", defaultAbilityType(resolvedAbilityType))
@@ -1100,6 +1133,12 @@ public final class PetConfigManager {
 					ability.addProperty("explosion-radius", 2.0D);
 					ability.addProperty("knockback-horizontal", 4.0D);
 					ability.addProperty("knockback-vertical", 1.0D);
+				}
+				if (usesReflectiveTaunt) {
+      ability.addProperty("taunt-radius", 12.0D);
+					ability.addProperty("taunt-duration", 5.0D);
+					ability.addProperty("reflected-damage", 0.20D);
+					ability.addProperty("cooldown", 40.0D);
 				}
 				if (MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(resolvedAbilityType)) {
 					ability.addProperty("player-damage-bonus", 1.2D);
@@ -1296,6 +1335,13 @@ public final class PetConfigManager {
 							0L,
 							MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION.equals(abilityType) ? Long.MAX_VALUE : 20L * 60L
 						),
+						PetSettings.clampDouble(getDouble(resolvedSource, "taunt-radius", 0.0D), 0.0D, 64.0D),
+						PetSettings.clampLong(
+							Math.round(Math.max(0.0D, getDouble(resolvedSource, "taunt-duration", 0.0D)) * 20.0D),
+							0L,
+							20L * 60L
+						),
+						PetSettings.clampDouble(getDouble(resolvedSource, "reflected-damage", 0.0D), 0.0D, 1.0D),
 						PetSettings.clampLong(getLong(resolvedSource, "stun-duration-ticks", defaultStunDurationTicksForAbility(abilityType)), 0L, 20L * 60L),
 						PetSettings.clampLong(getLong(resolvedSource, "slow-duration-ticks", defaultSlowDurationTicksForAbility(abilityType)), 0L, 20L * 60L * 10L),
 						PetSettings.clampDouble(getDouble(resolvedSource, "slow-percentage", defaultSlowPercentageForAbility(abilityType)), 0.0D, 1.0D),
@@ -1479,6 +1525,12 @@ public final class PetConfigManager {
 						descriptions.add("Reactive: Heals " + MadokuPetManager.formatPercent(ability.healthRegenerationAmount)
 							+ " health every second for "
 							+ MadokuPetManager.formatCooldownSeconds(ability.effectDurationTicks) + "s after taking damage.");
+					} else if (MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT.equals(configuredAbility)
+						&& ability.tauntRadius > 0.0D && ability.tauntDurationTicks > 0L && ability.reflectedDamageAmount > 0.0D) {
+						descriptions.add("Reactive: Taunts nearby hostile mobs within "
+							+ MadokuPetManager.formatAbilityAmount(ability.tauntRadius) + " blocks for "
+							+ MadokuPetManager.formatCooldownSeconds(ability.tauntDurationTicks) + "s, then reflects "
+							+ MadokuPetManager.formatPercent(ability.reflectedDamageAmount) + " of the damage it absorbed.");
 					} else if (MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(configuredAbility)) {
 						descriptions.add("Automatic: Reveals nearby mobs; they take " + MadokuPetManager.formatPercent(ability.mobScanVulnerabilityAmount) + " more damage.");
 					} else if (MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(configuredAbility) && ability.attackDamage > 0.0F) {

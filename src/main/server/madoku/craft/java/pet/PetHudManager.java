@@ -20,6 +20,7 @@ import java.util.UUID;
 
 /** Owns pet ability lore and the server-side HUD synchronization boundary. */
 public final class PetHudManager {
+	private static final int MAX_LORE_LINE_CHARACTERS = 64;
 	private static final Set<UUID> DIRTY_PLAYERS = new HashSet<>();
 	private PetHudManager() {
 	}
@@ -71,15 +72,42 @@ public final class PetHudManager {
 		stack.remove(DataComponents.LORE);
 		List<Component> lines = new ArrayList<>();
 		if (PetEntitiesManager.isPetItem(stack)) {
-			lines.add(Component.literal("Level: " + PetEntitiesManager.petLevel(stack)).withStyle(ChatFormatting.AQUA));
+			addWrappedLoreLines(lines, "Level: " + PetEntitiesManager.petLevel(stack), ChatFormatting.AQUA);
 		}
 		for (String description : rule.abilityDescriptions()) {
-			lines.add(Component.literal(description).withStyle(ChatFormatting.GOLD));
+			addWrappedLoreLines(lines, description, ChatFormatting.GOLD);
 		}
 		for (String cooldownDescription : rule.cooldownDescriptions()) {
-			lines.add(Component.literal(cooldownDescription).withStyle(ChatFormatting.GRAY));
+			addWrappedLoreLines(lines, cooldownDescription, ChatFormatting.GRAY);
 		}
 		if (!lines.isEmpty()) stack.set(DataComponents.LORE, new ItemLore(lines));
+	}
+
+	private static void addWrappedLoreLines(List<Component> lines, String text, ChatFormatting formatting) {
+		for (String line : wrapLoreText(text)) {
+			lines.add(Component.literal(line).withStyle(formatting));
+		}
+	}
+
+	private static List<String> wrapLoreText(String text) {
+		List<String> wrapped = new ArrayList<>();
+		if (text == null || text.isBlank()) {
+			return wrapped;
+		}
+
+		String remaining = text.trim();
+		while (remaining.length() > MAX_LORE_LINE_CHARACTERS) {
+			int breakAt = remaining.lastIndexOf(' ', MAX_LORE_LINE_CHARACTERS);
+			if (breakAt <= 0) {
+				breakAt = MAX_LORE_LINE_CHARACTERS;
+			}
+			wrapped.add(remaining.substring(0, breakAt));
+			remaining = remaining.substring(breakAt).trim();
+		}
+		if (!remaining.isEmpty()) {
+			wrapped.add(remaining);
+		}
+		return wrapped;
 	}
 
 	public static void applySupportedPetLore(ItemStack stack) {

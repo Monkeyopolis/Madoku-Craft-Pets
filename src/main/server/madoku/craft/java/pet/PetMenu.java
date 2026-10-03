@@ -63,6 +63,9 @@ public final class PetMenu extends AbstractContainerMenu {
 		int level = PetEntitiesAPIManager.petLevel(target);
 		PetConfigManager.PetRule rule = PetConfigManager.resolvePetRule(target);
 		if (rule == null) return UpgradeRequirements.empty();
+		if (level >= PetAPIManager.maxPetLevel()) {
+			return new UpgradeRequirements(true, false, List.of());
+		}
 
 		List<IngredientRequirement> ingredients = new ArrayList<>();
 		for (PetConfigManager.PetUpgradeIngredient ingredient : rule.upgradeIngredients) {
@@ -73,8 +76,7 @@ public final class PetMenu extends AbstractContainerMenu {
 			int owned = countIngredient(ingredient.item());
 			ingredients.add(new IngredientRequirement(ingredient, owned, required));
 		}
-		boolean belowMaximum = level < PetAPIManager.maxPetLevel();
-		boolean canUpgrade = belowMaximum && ingredients.stream().allMatch(IngredientRequirement::isMet);
+		boolean canUpgrade = ingredients.stream().allMatch(IngredientRequirement::isMet);
 		return new UpgradeRequirements(true, canUpgrade, List.copyOf(ingredients));
 	}
 
