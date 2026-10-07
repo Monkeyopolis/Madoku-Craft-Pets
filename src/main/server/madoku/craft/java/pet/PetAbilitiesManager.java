@@ -611,7 +611,7 @@ public final class PetAbilitiesManager {
 				for (String abilityType : abilityTypes) {
 					defaults.put(PetConfigManager.abilityConfigId(abilityType), PetConfigManager.PetRule.defaultsForAbility(abilityType));
 				}
-				Path abilitiesDirectory = PetConfigManager.petDirectory().resolve(PetConfigManager.ABILITY_FOLDER);
+				Path abilitiesDirectory = PetConfigManager.petDirectory().resolve(PetConfigAPIManager.ABILITY_FOLDER);
 				Map<String, JsonObject> loaded = JSONFormatAPIManager.ensureManagedFolder(
 					abilitiesDirectory,
 					defaults,
@@ -3911,7 +3911,7 @@ public final class PetAbilitiesManager {
 		}
 
 		static int[] currentAbilityCooldowns(ServerPlayer player) {
-			int[] remaining = new int[SLOT_COUNT * MadokuPetManager.MAX_ABILITY_COOLDOWNS_PER_PET];
+			int[] remaining = new int[SLOT_COUNT * PetAPIManager.MAX_ABILITY_COOLDOWNS_PER_PET];
 			if (player == null) {
 				return remaining;
 			}
@@ -3925,9 +3925,9 @@ public final class PetAbilitiesManager {
 				if (rule == null || !rule.enabled) continue;
 				int cooldownIndex = 0;
 				for (PetAbilityRule ability : rule.abilities) {
-					if (ability.cooldownTicks <= 0L || cooldownIndex >= MadokuPetManager.MAX_ABILITY_COOLDOWNS_PER_PET) continue;
+					if (ability.cooldownTicks <= 0L || cooldownIndex >= PetAPIManager.MAX_ABILITY_COOLDOWNS_PER_PET) continue;
 					long cooldown = abilityCooldown(playerId, slot, ability.abilityType);
-					remaining[slot * MadokuPetManager.MAX_ABILITY_COOLDOWNS_PER_PET + cooldownIndex] =
+					remaining[slot * PetAPIManager.MAX_ABILITY_COOLDOWNS_PER_PET + cooldownIndex] =
 						(int) Math.min(Integer.MAX_VALUE, Math.max(0L, cooldown - now));
 					cooldownIndex++;
 				}

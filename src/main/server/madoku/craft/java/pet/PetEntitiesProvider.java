@@ -1,6 +1,5 @@
 package madoku.craft.java.pet;
 
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
@@ -12,7 +11,6 @@ import net.minecraft.world.phys.Vec3;
 public interface PetEntitiesProvider {
 	default void initialize() { }
 	default void reset() { }
-	default void onServerStarted(MinecraftServer server) { }
 	default void onInventoryChanged(ServerPlayer player) { }
 	default boolean isPetItem(ItemStack stack) { return false; }
 	default int petLevel(ItemStack stack) { return 1; }

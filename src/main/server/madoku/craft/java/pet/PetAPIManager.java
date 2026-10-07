@@ -14,7 +14,6 @@ public final class PetAPIManager {
 	public static final int FIRST_SLOT_INDEX = 0;
 	public static final int SLOT_X = 12;
 	public static final int[] SLOT_YS = {22, 42, 62, 82, 102};
-	public static final String SAVE_KEY = "MadokuPets";
 	public static final int MAX_ABILITY_COOLDOWNS_PER_PET = 3;
 	public static final String PET_ABILITY_NONE = "none";
 	public static final String PET_ABILITY_RANGED_HOMING_ARROW = "ranged_homing_arrow";

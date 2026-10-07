@@ -67,7 +67,7 @@ public final class PetHagManager {
 
 	public static String rarity(ItemStack stack) {
 		PetRule rule = PetConfigManager.resolvePetRule(stack);
-		return rule == null ? MadokuPetManager.PET_RARITY_COMMON : rule.rarity;
+		return rule == null ? RarityAPIManager.Tier.COMMON.id() : rule.rarity;
 	}
 
 	public static void applyLore(ItemStack stack) {

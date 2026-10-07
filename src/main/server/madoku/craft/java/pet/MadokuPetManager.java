@@ -18,7 +18,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import madoku.craft.java.core.data.PlayerDataAPIManager;
-import madoku.craft.java.core.rarity.RarityAPIManager;
 import madoku.craft.java.core.chunk.ChunkAPIManager;
 import madoku.craft.java.core.runtime.AdaptiveIntervalAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
@@ -26,13 +25,6 @@ import madoku.craft.java.pet.PetComponentsAPIManager.PetInventory;
 import madoku.craft.java.pet.entity.MadokuEntities;
 
 public final class MadokuPetManager {
-	public static final int SLOT_COUNT = 5;
-	static final int MAX_ABILITY_COOLDOWNS_PER_PET = 3;
-	public static final int FIRST_SLOT_INDEX = 0;
-	public static final int SLOT_X = 12;
-	public static final int[] SLOT_YS = {22, 42, 62, 82, 102};
-	public static final String SAVE_KEY = "MadokuPets";
-
 	private static final String DATA_FILE_NAME = "madoku-pets";
 
 	static final String PET_RUNTIME_ADAPTIVE_ID = "pet_runtime";
@@ -54,12 +46,6 @@ public final class MadokuPetManager {
 	static final String PET_ABILITY_BEE_SWARM = "bee_swarm";
 	static final String PET_ABILITY_GOAT_CHARGE = "goat_charge";
 	static final String PET_ABILITY_REFLECTIVE_TAUNT = "reflective_taunt";
-	static final String PET_RARITY_COMMON = RarityAPIManager.Tier.COMMON.id();
-	static final String PET_RARITY_RARE = RarityAPIManager.Tier.RARE.id();
-	static final String PET_RARITY_EPIC = RarityAPIManager.Tier.EPIC.id();
-	static final String PET_RARITY_LEGENDARY = RarityAPIManager.Tier.LEGENDARY.id();
-	static final String PET_RARITY_MYTHIC = RarityAPIManager.Tier.MYTHIC.id();
-
 	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
 	private static final Map<UUID, TeleportStamp> LAST_TELEPORT_STAMPS_BY_PLAYER = new HashMap<>();
 
@@ -71,7 +57,6 @@ public final class MadokuPetManager {
 
 	public static void initialize() {
 		PetMenuManager.initialize();
-		PetAPIManager.registerProvider(new MadokuPetProvider());
 		PetEntitiesManager.initialize();
 		MadokuEntities.initialize();
 		PetConfigManager.initialize();

@@ -1,5 +1,6 @@
 package madoku.craft.java.pet.entity;
 
+import madoku.craft.java.core.rarity.RarityAPIManager;
 import madoku.craft.java.pet.PetHagAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
 import madoku.craft.java.pet.PetConfigAPIManager;
@@ -31,11 +32,6 @@ import java.util.Random;
 
 public class Hag extends Witch implements Merchant {
 	private static final String PLAYER_TARGET_GOAL_NAME = "NearestAttackableWitchTargetGoal";
-	private static final String PET_RARITY_COMMON = "common";
-	private static final String PET_RARITY_RARE = "rare";
-	private static final String PET_RARITY_EPIC = "epic";
-	private static final String PET_RARITY_LEGENDARY = "legendary";
-	private static final String PET_RARITY_MYTHIC = "mythic";
 	private static final long TRADE_REFRESH_DAYS = 7L;
 	private static final int AVAILABLE_TRADE_COUNT = 7;
 	private static final int TRADE_MAX_USES = 999999;
@@ -265,13 +261,13 @@ public class Hag extends Witch implements Merchant {
 	}
 
 	private int emeraldCost(Item item) {
-		return switch (petRarity(item)) {
-			case PET_RARITY_MYTHIC -> 128;
-			case PET_RARITY_LEGENDARY -> 96;
-			case PET_RARITY_EPIC -> 64;
-			case PET_RARITY_RARE -> 48;
-			case PET_RARITY_COMMON -> 32;
-			default -> 32;
+		RarityAPIManager.Tier tier = RarityAPIManager.fromString(petRarity(item));
+		return switch (tier == null ? RarityAPIManager.Tier.COMMON : tier) {
+			case MYTHIC -> 128;
+			case LEGENDARY -> 96;
+			case EPIC -> 64;
+			case RARE -> 48;
+			case COMMON -> 32;
 		};
 	}
 

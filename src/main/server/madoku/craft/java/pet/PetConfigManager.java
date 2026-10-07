@@ -28,10 +28,6 @@ import java.util.LinkedHashSet;
 
 /** Owns the configured Madoku Pet definitions and configuration lifecycle. */
 public final class PetConfigManager {
-	public static final String ROOT_FOLDER = "madoku-craft";
-	public static final String PET_FOLDER = "madoku-craft-pets";
-	public static final String ENTITY_FOLDER = "madoku-entities";
-	public static final String ABILITY_FOLDER = "madoku-abilities";
 	static final String ABILITY_TYPE_SHARED = "shared";
 	static final String ABILITY_TYPE_STANDALONE = "standalone";
 	static final String ABILITY_RANGE_SHORT = "short";
@@ -68,7 +64,7 @@ public final class PetConfigManager {
 
 	public static String petRarity(ItemStack stack) {
 		PetRule rule = resolvePetRule(stack);
-		return rule == null ? MadokuPetManager.PET_RARITY_COMMON : rule.rarity;
+		return rule == null ? RarityAPIManager.Tier.COMMON.id() : rule.rarity;
 	}
 
 	public static String normalizeKey(String value) {
@@ -301,7 +297,7 @@ public final class PetConfigManager {
 
 	static void loadStaticConfig() {
 		try {
-			Path rootDirectory = JSONAPIManager.getOrCreateGlobalSystemDirectory(PET_FOLDER);
+			Path rootDirectory = JSONAPIManager.getOrCreateGlobalSystemDirectory(PetConfigAPIManager.PET_FOLDER);
 			Path configFile = resolveJsonFile(rootDirectory, CONFIG_FILE_NAME);
 			JsonObject defaults = PetSettings.defaults().toConfigJson();
 			JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(configFile, defaults);
@@ -315,7 +311,7 @@ public final class PetConfigManager {
 	}
 
 	static Path petDirectory() throws IOException {
-		return JSONAPIManager.getOrCreateGlobalSystemDirectory(PET_FOLDER);
+		return JSONAPIManager.getOrCreateGlobalSystemDirectory(PetConfigAPIManager.PET_FOLDER);
 	}
 
 	static void logFailure(String message, Throwable cause) {
@@ -360,15 +356,15 @@ public final class PetConfigManager {
 
 	static String defaultRarityForItem(String itemId) {
 		String normalizedItemId = normalizePetId(itemId);
-		if ("minecraft:bee".equals(normalizedItemId) || "minecraft:bat".equals(normalizedItemId)) return MadokuPetManager.PET_RARITY_EPIC;
-		if ("minecraft:chicken".equals(normalizedItemId)) return MadokuPetManager.PET_RARITY_LEGENDARY;
-		if ("minecraft:cow".equals(normalizedItemId)) return MadokuPetManager.PET_RARITY_LEGENDARY;
+		if ("minecraft:bee".equals(normalizedItemId) || "minecraft:bat".equals(normalizedItemId)) return RarityAPIManager.Tier.EPIC.id();
+		if ("minecraft:chicken".equals(normalizedItemId)) return RarityAPIManager.Tier.LEGENDARY.id();
+		if ("minecraft:cow".equals(normalizedItemId)) return RarityAPIManager.Tier.LEGENDARY.id();
 		if ("minecraft:goat".equals(normalizedItemId)
 			|| "minecraft:creeper".equals(normalizedItemId)
 			|| "minecraft:skeleton".equals(normalizedItemId)
 			|| "minecraft:spider".equals(normalizedItemId)
-			|| "minecraft:iron-golem".equals(normalizedItemId)) return MadokuPetManager.PET_RARITY_RARE;
-		return MadokuPetManager.PET_RARITY_COMMON;
+			|| "minecraft:iron-golem".equals(normalizedItemId)) return RarityAPIManager.Tier.RARE.id();
+		return RarityAPIManager.Tier.COMMON.id();
 	}
 
 	static String resolvePetId(String fileKey, JsonObject sourceRoot) {
@@ -958,8 +954,8 @@ public final class PetConfigManager {
 				List<PetAbilityRule> abilities
 			) {
 				this.enabled = enabled;
-				this.petId = itemId != null && itemId.startsWith(PetEntitiesManager.PET_ITEM_NAMESPACE + ":")
-					? normalizePetId(itemId.substring((PetEntitiesManager.PET_ITEM_NAMESPACE + ":").length()).replaceFirst("-pet$", ""))
+				this.petId = itemId != null && itemId.startsWith(PetEntitiesAPIManager.PET_ITEM_NAMESPACE + ":")
+					? normalizePetId(itemId.substring((PetEntitiesAPIManager.PET_ITEM_NAMESPACE + ":").length()).replaceFirst("-pet$", ""))
 					: normalizePetId(itemId);
 				this.itemId = itemId;
 				this.rarity = rarity;
@@ -1028,7 +1024,7 @@ public final class PetConfigManager {
 						});
 						pet.object("pet-upgrade", upgrade -> upgrade.array("ingredients", ingredients -> {
 							ingredients.object(ingredient -> ingredient
-								.put("item-id", PetEntitiesManager.PET_ITEM_NAMESPACE + ":" + petItemPath(resolvedPetId))
+								.put("item-id", PetEntitiesAPIManager.PET_ITEM_NAMESPACE + ":" + petItemPath(resolvedPetId))
 								.put("base-cost", 1));
 							ingredients.object(ingredient -> ingredient
 								.put("item-id", "minecraft:experience-bottle")
@@ -1171,9 +1167,9 @@ public final class PetConfigManager {
 				JsonObject abilityGroup = objectField(primaryDefinition, "ability-id");
 				JsonObject resolvedSource = resolveAbilitySource(source, abilityGroup, abilityType);
 				source = resolvedSource;
-				String itemId = PetEntitiesManager.PET_ITEM_NAMESPACE + ":" + petItemPath(petId);
+				String itemId = PetEntitiesAPIManager.PET_ITEM_NAMESPACE + ":" + petItemPath(petId);
 				String rarity = normalizePetRarity(
-					getString(source, "rarity", MadokuPetManager.PET_RARITY_COMMON)
+					getString(source, "rarity", RarityAPIManager.Tier.COMMON.id())
 				);
 				double petScale = PetSettings.clampDouble(
 					getDouble(source, "pet-scale", defaultPetScaleForItem(itemId)),

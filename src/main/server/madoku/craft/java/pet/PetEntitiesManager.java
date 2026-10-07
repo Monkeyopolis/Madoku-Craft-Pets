@@ -41,11 +41,11 @@ import madoku.craft.java.pet.PetConfigManager.PetRule;
 
 /** Owns the runtime pet-entity lifecycle and equipped pet slots. */
 public final class PetEntitiesManager {
-	public static final int SLOT_COUNT = MadokuPetManager.SLOT_COUNT;
-	public static final int FIRST_SLOT_INDEX = MadokuPetManager.FIRST_SLOT_INDEX;
-	public static final int SLOT_X = MadokuPetManager.SLOT_X;
-	public static final int[] SLOT_YS = MadokuPetManager.SLOT_YS;
-	public static final String PET_ITEM_NAMESPACE = "madoku-craft";
+	public static final int SLOT_COUNT = PetAPIManager.SLOT_COUNT;
+	public static final int FIRST_SLOT_INDEX = PetAPIManager.FIRST_SLOT_INDEX;
+	public static final int SLOT_X = PetAPIManager.SLOT_X;
+	public static final int[] SLOT_YS = PetAPIManager.SLOT_YS;
+	public static final String PET_ITEM_NAMESPACE = PetEntitiesAPIManager.PET_ITEM_NAMESPACE;
 	private static final String PET_LEVEL_TAG = "madoku-pet-level";
 	private static final int DEFAULT_PET_LEVEL = 1;
 	private static final Map<String, Item> PET_ITEMS_BY_ID = new LinkedHashMap<>();
@@ -139,7 +139,7 @@ public final class PetEntitiesManager {
 
 		static void reload() {
 			try {
-				Path rulesDirectory = PetConfigManager.petDirectory().resolve(PetConfigManager.ENTITY_FOLDER);
+				Path rulesDirectory = PetConfigManager.petDirectory().resolve(PetConfigAPIManager.ENTITY_FOLDER);
 				Map<String, JsonObject> normalizedFiles = JSONFormatAPIManager.ensureManagedFolder(
 					rulesDirectory,
 					buildDefaultPetRuleFiles(),
@@ -296,10 +296,6 @@ public final class PetEntitiesManager {
 			removeAllPetEntities(server);
 		}
 		reset();
-	}
-
-	public static void onServerStarted(MinecraftServer server) {
-		MadokuPetManager.onServerStarted(server);
 	}
 
 	public static void onInventoryChanged(ServerPlayer player) {

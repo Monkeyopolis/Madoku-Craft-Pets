@@ -1,6 +1,5 @@
 package madoku.craft.java.pet;
 
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
@@ -28,7 +27,6 @@ public final class PetEntitiesAPIManager {
 	public static void unregisterProvider() { provider = UNAVAILABLE_PROVIDER; }
 	public static void initialize() { provider.initialize(); }
 	public static void reset() { provider.reset(); }
-	public static void onServerStarted(MinecraftServer server) { provider.onServerStarted(server); }
 	public static void onInventoryChanged(ServerPlayer player) { provider.onInventoryChanged(player); }
 	public static boolean isPetItem(ItemStack stack) { return provider.isPetItem(stack); }
 	public static int petLevel(ItemStack stack) { return provider.petLevel(stack); }

@@ -1,6 +1,5 @@
 package madoku.craft.java.pet;
 
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
@@ -12,7 +11,6 @@ import net.minecraft.world.phys.Vec3;
 public final class MadokuPetEntitiesProvider implements PetEntitiesProvider {
 	@Override public void initialize() { PetEntitiesManager.initialize(); }
 	@Override public void reset() { PetEntitiesManager.reset(); }
-	@Override public void onServerStarted(MinecraftServer server) { PetEntitiesManager.onServerStarted(server); }
 	@Override public void onInventoryChanged(ServerPlayer player) { PetEntitiesManager.onInventoryChanged(player); }
 	@Override public boolean isPetItem(ItemStack stack) { return PetEntitiesManager.isPetItem(stack); }
 	@Override public int petLevel(ItemStack stack) { return PetEntitiesManager.petLevel(stack); }
