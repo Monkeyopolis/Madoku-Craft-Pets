@@ -79,7 +79,7 @@ public final class PetAbilitiesManager {
 	private static final String PET_ABILITY_REFLECTIVE_TAUNT = MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT;
 	private static final String IRON_GOLEM_PET_ID = "minecraft:iron-golem";
 	private static final long REFLECTIVE_TAUNT_ATTACK_DELAY_TICKS = 10L;
-	private static final long REFLECTIVE_TAUNT_DAMAGE_WAVE_TICKS = 5L;
+	private static final long REFLECTIVE_TAUNT_DAMAGE_WAVE_TICKS = 2L;
 	private static final int WEB_PROJECTILE_BASE_RICOCHETS = 3;
 	private static final double WEB_PROJECTILE_RICOCHET_RADIUS = 5.0D;
 	private static final double WEB_PROJECTILE_RICOCHET_RADIUS_PER_LEVEL = 0.5D;
