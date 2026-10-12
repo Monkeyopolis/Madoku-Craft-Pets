@@ -745,7 +745,7 @@ public final class PetConfigManager {
 			}
 			double resolvedMovementSpeedBonus = movementSpeedBonusAmount;
 			if (MadokuPetManager.PET_ABILITY_MOVEMENT_SPEED_BONUS.equals(abilityType)) {
-				resolvedMovementSpeedBonus += (Math.max(1, level) - 1) * 0.005D;
+				resolvedMovementSpeedBonus += (Math.max(1, level) - 1) * 0.01D;
 			}
 			double resolvedSprintSpeedBoost = sprintSpeedBoostAmount;
 			long resolvedCooldownTicks = cooldownTicks;
@@ -1165,7 +1165,7 @@ public final class PetConfigManager {
 					ability.addProperty("cooldown", 40.0D);
 				}
 				if (usesMovementSpeedBonus) {
-					ability.addProperty("movement-speed-bonus", 0.03D);
+					ability.addProperty("movement-speed-bonus", 0.06D);
 				}
 				if (usesSprintBoost) {
 					ability.addProperty("sprint-speed-boost", 0.20D);

@@ -614,18 +614,18 @@ public final class PetAbilitiesManager {
 			return speed;
 		}
 
-		double multiplier = 1.0D + resolveMovementSpeedBonus(player);
+		double totalBonus = resolveMovementSpeedBonus(player);
 		boolean serverPlayer = player instanceof ServerPlayer;
 		Map<UUID, SprintBoostState> activeBoosts = serverPlayer ? ACTIVE_SPRINT_BOOSTS : CLIENT_ACTIVE_SPRINT_BOOSTS;
 		long now = serverPlayer ? TimeAPIManager.getGameplayTicks() : player.level().getGameTime();
 		if (player.isSprinting()) {
 			SprintBoostState state = activeBoosts.get(player.getUUID());
 			if (state != null && now < state.untilTick()) {
-				multiplier *= 1.0D + Math.max(0.0D, state.speedBonus());
+				totalBonus += Math.max(0.0D, state.speedBonus());
 			}
 		}
 
-		return (float) (speed * multiplier);
+		return (float) (speed * (1.0D + totalBonus));
 	}
 
 	private static double resolveMovementSpeedBonus(Player player) {
@@ -635,11 +635,14 @@ public final class PetAbilitiesManager {
 		}
 
 		double bonus = 0.0D;
+		boolean hasPrimaryAbility = false;
 		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
 			PetRule rule = PetConfigManager.resolvePetRule(inventory.getItem(slot));
 			PetAbilityRule ability = rule == null ? null : rule.ability(PET_ABILITY_MOVEMENT_SPEED_BONUS);
 			if (ability != null) {
-				bonus += Math.max(0.0D, ability.movementSpeedBonusAmount);
+				double abilityBonus = Math.max(0.0D, ability.movementSpeedBonusAmount);
+				bonus += abilityBonus * (hasPrimaryAbility ? 0.5D : 1.0D);
+				hasPrimaryAbility = true;
 			}
 		}
 		return Math.max(0.0D, bonus);
