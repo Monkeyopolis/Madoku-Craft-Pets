@@ -31,7 +31,9 @@ public final class PetHudManagerClient {
 	private static final Identifier ABILITY_FALL_DAMAGE_REDUCTION_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/fall-damage-reduction.png");
 	private static final Identifier ABILITY_HEALTH_REGENERATION_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/health-regeneration.png");
 	private static final Identifier ABILITY_MOB_SCAN_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/mob-scan.png");
+	private static final Identifier ABILITY_MOVEMENT_SPEED_BONUS_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/bonus-movement-speed.png");
 	private static final Identifier ABILITY_REFLECTIVE_TAUNT_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/reflective-taunt.png");
+	private static final Identifier ABILITY_SPRINT_BOOST_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/sprint-boost.png");
 	private static final Identifier ABILITY_WEB_PROJECTILE_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/web-projectile.png");
 	private static final RenderPipeline ABILITY_SLOT_PIPELINE = RenderPipelines.GUI_TEXTURED;
 	private static final int ABILITY_SLOT_TEXTURE_SIZE = 16;
@@ -204,7 +206,9 @@ public final class PetHudManagerClient {
 			case PetAPIManager.PET_ABILITY_FALL_DAMAGE_REDUCTION -> ABILITY_FALL_DAMAGE_REDUCTION_TEXTURE;
 			case PetAPIManager.PET_ABILITY_HEALTH_REGENERATION -> ABILITY_HEALTH_REGENERATION_TEXTURE;
 			case PetAPIManager.PET_ABILITY_MOB_SCAN -> ABILITY_MOB_SCAN_TEXTURE;
+			case PetAPIManager.PET_ABILITY_MOVEMENT_SPEED_BONUS -> ABILITY_MOVEMENT_SPEED_BONUS_TEXTURE;
 			case PetAPIManager.PET_ABILITY_REFLECTIVE_TAUNT -> ABILITY_REFLECTIVE_TAUNT_TEXTURE;
+			case PetAPIManager.PET_ABILITY_SPRINT_BOOST -> ABILITY_SPRINT_BOOST_TEXTURE;
 			case PetAPIManager.PET_ABILITY_WEB_PROJECTILE -> ABILITY_WEB_PROJECTILE_TEXTURE;
 			default -> ABILITY_ARROW_TEXTURE;
 		};

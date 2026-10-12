@@ -12,6 +12,7 @@
     "pet.MobWebStunMixin",
     "pet.PetInventoryMixin",
     "pet.PetItemTooltipMixin",
+    "pet.PlayerPetMovementSpeedMixin",
     "pet.ServerEntityPetUpdateIntervalMixin",
     "pet.ServerGamePacketListenerPetLeftClickMixin",
     "pet.ServerPlayerTeleportPetMixin"

@@ -18,6 +18,7 @@ public interface PetAbilitiesProvider {
 	default float getDamageVulnerabilityPercent(LivingEntity entity) { return 0.0F; }
 	default boolean isWebStunned(Entity entity) { return false; }
 	default float scaleWebMovementSpeed(LivingEntity entity, float speed) { return speed; }
+	default float scalePlayerMovementSpeed(LivingEntity entity, float speed) { return speed; }
 	default Vec3 scaleWebMovement(LivingEntity entity, Vec3 movement) { return movement; }
 	default void handlePlayerLeftClick(ServerPlayer player) { }
 	default boolean hasAbility(ItemStack stack) { return false; }

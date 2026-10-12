@@ -77,6 +77,8 @@ public final class PetAbilitiesManager {
 	private static final String PET_ABILITY_BEE_SWARM = MadokuPetManager.PET_ABILITY_BEE_SWARM;
 	private static final String PET_ABILITY_GOAT_CHARGE = MadokuPetManager.PET_ABILITY_GOAT_CHARGE;
 	private static final String PET_ABILITY_REFLECTIVE_TAUNT = MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT;
+	private static final String PET_ABILITY_MOVEMENT_SPEED_BONUS = MadokuPetManager.PET_ABILITY_MOVEMENT_SPEED_BONUS;
+	private static final String PET_ABILITY_SPRINT_BOOST = MadokuPetManager.PET_ABILITY_SPRINT_BOOST;
 	private static final String IRON_GOLEM_PET_ID = "minecraft:iron-golem";
 	private static final long REFLECTIVE_TAUNT_ATTACK_DELAY_TICKS = 10L;
 	private static final long REFLECTIVE_TAUNT_DAMAGE_WAVE_TICKS = 2L;
@@ -155,6 +157,11 @@ public final class PetAbilitiesManager {
 	private static final Map<String, BeeSwarmState> ACTIVE_BEE_SWARMS = new ConcurrentHashMap<>();
 	private static final Map<UUID, GoatChargeState> ACTIVE_GOAT_CHARGES = new ConcurrentHashMap<>();
 	private static final Map<UUID, ReflectiveTauntState> ACTIVE_REFLECTIVE_TAUNTS = new ConcurrentHashMap<>();
+	private static final Map<UUID, SprintBoostState> ACTIVE_SPRINT_BOOSTS = new ConcurrentHashMap<>();
+	private static final Map<UUID, Boolean> LAST_PLAYER_SPRINTING = new HashMap<>();
+	private static final Map<UUID, SprintBoostState> CLIENT_ACTIVE_SPRINT_BOOSTS = new HashMap<>();
+	private static final Map<UUID, Long> CLIENT_SPRINT_COOLDOWNS = new HashMap<>();
+	private static final Map<UUID, Boolean> CLIENT_LAST_PLAYER_SPRINTING = new HashMap<>();
 	private static final Map<UUID, Float> MOB_SCAN_VULNERABILITY_BY_ENTITY = new ConcurrentHashMap<>();
 	private static final Map<UUID, ExplosiveVulnerabilityState> EXPLOSIVE_VULNERABILITY_BY_ENTITY = new ConcurrentHashMap<>();
 
@@ -173,6 +180,11 @@ public final class PetAbilitiesManager {
 		ACTIVE_BEE_SWARMS.clear();
 		ACTIVE_GOAT_CHARGES.clear();
 		ACTIVE_REFLECTIVE_TAUNTS.clear();
+		ACTIVE_SPRINT_BOOSTS.clear();
+		LAST_PLAYER_SPRINTING.clear();
+		CLIENT_ACTIVE_SPRINT_BOOSTS.clear();
+		CLIENT_SPRINT_COOLDOWNS.clear();
+		CLIENT_LAST_PLAYER_SPRINTING.clear();
 		MOB_SCAN_VULNERABILITY_BY_ENTITY.clear();
 		EXPLOSIVE_VULNERABILITY_BY_ENTITY.clear();
 	}
@@ -188,7 +200,8 @@ public final class PetAbilitiesManager {
 			|| !ACTIVE_CHICKEN_EGG_VOLLEYS.isEmpty()
 			|| !ACTIVE_BEE_SWARMS.isEmpty()
 			|| !ACTIVE_GOAT_CHARGES.isEmpty()
-			|| !ACTIVE_REFLECTIVE_TAUNTS.isEmpty();
+			|| !ACTIVE_REFLECTIVE_TAUNTS.isEmpty()
+			|| !ACTIVE_SPRINT_BOOSTS.isEmpty();
 	}
 
 	static void tickWebControls(MinecraftServer server) {
@@ -257,6 +270,37 @@ public final class PetAbilitiesManager {
 					new HealthRegenerationState(nextHealTick, state.untilTick, state.healPercentage)
 				);
 			}
+		}
+	}
+
+	static void tickSprintBoosts(MinecraftServer server) {
+		if (server == null || ACTIVE_SPRINT_BOOSTS.isEmpty()) {
+			return;
+		}
+
+		long now = TimeAPIManager.getGameplayTicks();
+		for (Map.Entry<UUID, SprintBoostState> entry : ACTIVE_SPRINT_BOOSTS.entrySet()) {
+			UUID playerId = entry.getKey();
+			SprintBoostState state = entry.getValue();
+			ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+			if (state == null || player == null || !player.isAlive()) {
+				ACTIVE_SPRINT_BOOSTS.remove(playerId, state);
+				continue;
+			}
+			if (now < state.untilTick()) {
+				continue;
+			}
+
+			PetInventory inventory = petInventory(player);
+			if (inventory != null) {
+				setSharedAbilityCooldownForInventory(
+					player,
+					inventory,
+					PET_ABILITY_SPRINT_BOOST,
+					safeAdd(now, state.cooldownTicks())
+				);
+			}
+			ACTIVE_SPRINT_BOOSTS.remove(playerId, state);
 		}
 	}
 
@@ -564,6 +608,43 @@ public final class PetAbilitiesManager {
 		return movement.scale(multiplier);
 	}
 
+	/** Applies ocelot's passive movement speed bonus and currently active sprint boost. */
+	public static float scalePlayerMovementSpeed(LivingEntity entity, float speed) {
+		if (!(entity instanceof Player player) || speed <= 0.0F || !PetConfigManager.isEnabled()) {
+			return speed;
+		}
+
+		double multiplier = 1.0D + resolveMovementSpeedBonus(player);
+		boolean serverPlayer = player instanceof ServerPlayer;
+		Map<UUID, SprintBoostState> activeBoosts = serverPlayer ? ACTIVE_SPRINT_BOOSTS : CLIENT_ACTIVE_SPRINT_BOOSTS;
+		long now = serverPlayer ? TimeAPIManager.getGameplayTicks() : player.level().getGameTime();
+		if (player.isSprinting()) {
+			SprintBoostState state = activeBoosts.get(player.getUUID());
+			if (state != null && now < state.untilTick()) {
+				multiplier *= 1.0D + Math.max(0.0D, state.speedBonus());
+			}
+		}
+
+		return (float) (speed * multiplier);
+	}
+
+	private static double resolveMovementSpeedBonus(Player player) {
+		PetInventory inventory = petInventory(player);
+		if (inventory == null) {
+			return 0.0D;
+		}
+
+		double bonus = 0.0D;
+		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
+			PetRule rule = PetConfigManager.resolvePetRule(inventory.getItem(slot));
+			PetAbilityRule ability = rule == null ? null : rule.ability(PET_ABILITY_MOVEMENT_SPEED_BONUS);
+			if (ability != null) {
+				bonus += Math.max(0.0D, ability.movementSpeedBonusAmount);
+			}
+		}
+		return Math.max(0.0D, bonus);
+	}
+
 	private PetAbilitiesManager() {
 	}
 
@@ -606,7 +687,9 @@ public final class PetAbilitiesManager {
 					MadokuPetManager.PET_ABILITY_MOB_SCAN,
 					MadokuPetManager.PET_ABILITY_BEE_SWARM,
 				MadokuPetManager.PET_ABILITY_GOAT_CHARGE,
-				MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT
+				MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT,
+				MadokuPetManager.PET_ABILITY_MOVEMENT_SPEED_BONUS,
+				MadokuPetManager.PET_ABILITY_SPRINT_BOOST
 				};
 				for (String abilityType : abilityTypes) {
 					defaults.put(PetConfigManager.abilityConfigId(abilityType), PetConfigManager.PetRule.defaultsForAbility(abilityType));
@@ -665,8 +748,136 @@ public final class PetAbilitiesManager {
 	}
 
 	static void tickAutomaticAbilities(ServerPlayer player, long gameplayTicks) {
+		triggerSprintAbility(player, gameplayTicks);
 		triggerAutomaticBatMobScan(player, gameplayTicks);
 		triggerAutomaticBeeSwarm(player, gameplayTicks);
+	}
+
+	private static void triggerSprintAbility(ServerPlayer player, long gameplayTicks) {
+		if (player == null || !player.isAlive() || !PetConfigManager.isEnabled()) {
+			return;
+		}
+
+		UUID playerId = player.getUUID();
+		boolean sprinting = player.isSprinting();
+		boolean wasSprinting = LAST_PLAYER_SPRINTING.getOrDefault(playerId, false);
+		LAST_PLAYER_SPRINTING.put(playerId, sprinting);
+		if (!sprinting || wasSprinting || ACTIVE_SPRINT_BOOSTS.containsKey(playerId)) {
+			return;
+		}
+
+		PetInventory inventory = petInventory(player);
+		if (inventory == null) {
+			return;
+		}
+
+		int[] abilitySlots = new int[SLOT_COUNT];
+		int abilityCount = collectSlotsWithAbility(inventory, PET_ABILITY_SPRINT_BOOST, abilitySlots, null);
+		if (abilityCount <= 0) {
+			return;
+		}
+
+		synchronizeAllAbilityCooldowns(player, inventory, gameplayTicks);
+		long sharedCooldownTick = synchronizeSharedAbilityCooldown(
+			playerId,
+			PET_ABILITY_SPRINT_BOOST,
+			abilitySlots,
+			abilityCount,
+			gameplayTicks
+		);
+		if (gameplayTicks < sharedCooldownTick) {
+			return;
+		}
+
+		PetAbilityRule resolvedAbility = resolveDuplicateAbilityRule(
+			inventory,
+			abilitySlots,
+			abilityCount,
+			PET_ABILITY_SPRINT_BOOST
+		);
+		if (resolvedAbility == null) {
+			return;
+		}
+
+		int duplicateCount = Math.max(0, abilityCount - 1);
+		long durationTicks = Math.max(0L,
+			resolvedAbility.effectDurationTicks + (duplicateCount * 20L));
+		long cooldownTicks = Math.max(0L,
+			resolvedAbility.cooldownTicks - (duplicateCount * 50L));
+		double speedBonus = Math.max(0.0D,
+			resolvedAbility.sprintSpeedBoostAmount + (duplicateCount * 0.05D));
+		if (durationTicks <= 0L || speedBonus <= 0.0D) {
+			return;
+		}
+
+		ACTIVE_SPRINT_BOOSTS.put(
+			playerId,
+			new SprintBoostState(safeAdd(gameplayTicks, durationTicks), cooldownTicks, speedBonus)
+		);
+	}
+
+	/** Mirrors the sprint trigger locally so client-side movement uses the same configured boost. */
+	public static void tickClientSprintBoosts(Player player) {
+		if (player == null) {
+			CLIENT_ACTIVE_SPRINT_BOOSTS.clear();
+			CLIENT_SPRINT_COOLDOWNS.clear();
+			CLIENT_LAST_PLAYER_SPRINTING.clear();
+			return;
+		}
+
+		UUID playerId = player.getUUID();
+		long gameplayTicks = player.level().getGameTime();
+		SprintBoostState activeState = CLIENT_ACTIVE_SPRINT_BOOSTS.get(playerId);
+		if (activeState != null && gameplayTicks >= activeState.untilTick()) {
+			CLIENT_ACTIVE_SPRINT_BOOSTS.remove(playerId, activeState);
+			CLIENT_SPRINT_COOLDOWNS.put(playerId, safeAdd(gameplayTicks, activeState.cooldownTicks()));
+		}
+
+		boolean sprinting = player.isSprinting();
+		boolean wasSprinting = CLIENT_LAST_PLAYER_SPRINTING.getOrDefault(playerId, false);
+		CLIENT_LAST_PLAYER_SPRINTING.put(playerId, sprinting);
+		if (!player.isAlive() || !PetConfigManager.isEnabled() || !sprinting || wasSprinting
+			|| CLIENT_ACTIVE_SPRINT_BOOSTS.containsKey(playerId)
+			|| gameplayTicks < CLIENT_SPRINT_COOLDOWNS.getOrDefault(playerId, 0L)) {
+			return;
+		}
+
+		PetInventory inventory = petInventory(player);
+		if (inventory == null) {
+			return;
+		}
+
+		int[] abilitySlots = new int[SLOT_COUNT];
+		int abilityCount = collectSlotsWithAbility(inventory, PET_ABILITY_SPRINT_BOOST, abilitySlots, null);
+		if (abilityCount <= 0) {
+			return;
+		}
+
+		PetAbilityRule resolvedAbility = resolveDuplicateAbilityRule(
+			inventory,
+			abilitySlots,
+			abilityCount,
+			PET_ABILITY_SPRINT_BOOST
+		);
+		if (resolvedAbility == null) {
+			return;
+		}
+
+		int duplicateCount = Math.max(0, abilityCount - 1);
+		long durationTicks = Math.max(0L,
+			resolvedAbility.effectDurationTicks + (duplicateCount * 20L));
+		long cooldownTicks = Math.max(0L,
+			resolvedAbility.cooldownTicks - (duplicateCount * 50L));
+		double speedBonus = Math.max(0.0D,
+			resolvedAbility.sprintSpeedBoostAmount + (duplicateCount * 0.05D));
+		if (durationTicks <= 0L || speedBonus <= 0.0D) {
+			return;
+		}
+
+		CLIENT_ACTIVE_SPRINT_BOOSTS.put(
+			playerId,
+			new SprintBoostState(safeAdd(gameplayTicks, durationTicks), cooldownTicks, speedBonus)
+		);
 	}
 
 	static void triggerReactiveAbilities(ServerPlayer player, LivingEntity target) {
@@ -2504,6 +2715,10 @@ public final class PetAbilitiesManager {
 				|| countSlotsWithAbility(inventory, PET_ABILITY_BEE_SWARM) > 0;
 		}
 
+		static boolean hasSprintBoostAbility(PetInventory inventory) {
+			return countSlotsWithAbility(inventory, PET_ABILITY_SPRINT_BOOST) > 0;
+		}
+
 			static int countSlotsWithAbility(PetInventory inventory, String abilityType) {
 			return collectSlotsWithAbility(inventory, abilityType, null, null);
 		}
@@ -4062,6 +4277,13 @@ public final class PetAbilitiesManager {
 		}
 	}
 
+	static void clearPlayerSprintState(UUID playerId) {
+		if (playerId != null) {
+			LAST_PLAYER_SPRINTING.remove(playerId);
+			ACTIVE_SPRINT_BOOSTS.remove(playerId);
+		}
+	}
+
 	private record WebProjectileState(
 		String dimensionId,
 		UUID ownerUuid,
@@ -4090,6 +4312,12 @@ public final class PetAbilitiesManager {
 		long nextHealTick,
 		long untilTick,
 		double healPercentage
+	) {}
+
+	private record SprintBoostState(
+		long untilTick,
+		long cooldownTicks,
+		double speedBonus
 	) {}
 
 	private record ExplosiveProjectileState(

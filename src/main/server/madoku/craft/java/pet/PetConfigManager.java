@@ -90,6 +90,7 @@ public final class PetConfigManager {
 			case MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW -> "Homing Arrow:";
 			case MadokuPetManager.PET_ABILITY_MOB_SCAN -> "Mob Scan:";
 			case MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT -> "Reflective Taunt:";
+			case MadokuPetManager.PET_ABILITY_SPRINT_BOOST -> "Sprint Boost:";
 			default -> abilityType == null || abilityType.isBlank() ? "Cooldown:" : abilityType + ":";
 		};
 	}
@@ -140,7 +141,8 @@ public final class PetConfigManager {
 				MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION,
 				MadokuPetManager.PET_ABILITY_MOB_SCAN,
 				MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION,
-				MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT -> ABILITY_TYPE_SHARED;
+				MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT,
+				MadokuPetManager.PET_ABILITY_SPRINT_BOOST -> ABILITY_TYPE_SHARED;
 			default -> ABILITY_TYPE_STANDALONE;
 		};
 	}
@@ -331,6 +333,7 @@ public final class PetConfigManager {
 		if ("minecraft:creeper".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE;
 		if ("minecraft:goat".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_GOAT_CHARGE;
 		if ("minecraft:iron-golem".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT;
+		if ("minecraft:ocelot".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_MOVEMENT_SPEED_BONUS;
 		if ("minecraft:zombie".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS;
 		return MadokuPetManager.PET_ABILITY_NONE;
 	}
@@ -364,6 +367,7 @@ public final class PetConfigManager {
 			|| "minecraft:skeleton".equals(normalizedItemId)
 			|| "minecraft:spider".equals(normalizedItemId)
 			|| "minecraft:iron-golem".equals(normalizedItemId)) return RarityAPIManager.Tier.RARE.id();
+		if ("minecraft:ocelot".equals(normalizedItemId)) return RarityAPIManager.Tier.LEGENDARY.id();
 		return RarityAPIManager.Tier.COMMON.id();
 	}
 
@@ -586,6 +590,8 @@ public final class PetConfigManager {
 		final double damageReductionAmount;
 		final double damageBlockAmount;
 		final double healthRegenerationAmount;
+		final double movementSpeedBonusAmount;
+		final double sprintSpeedBoostAmount;
 		final long cooldownTicks;
 		final double attackArcStepDegrees;
 		final double attackRearOffset;
@@ -624,6 +630,8 @@ public final class PetConfigManager {
 			double damageReductionAmount,
 			double damageBlockAmount,
 			double healthRegenerationAmount,
+			double movementSpeedBonusAmount,
+			double sprintSpeedBoostAmount,
 			long cooldownTicks,
 			double attackArcStepDegrees,
 			double attackRearOffset,
@@ -664,6 +672,8 @@ public final class PetConfigManager {
 			this.damageReductionAmount = damageReductionAmount;
 			this.damageBlockAmount = damageBlockAmount;
 			this.healthRegenerationAmount = healthRegenerationAmount;
+			this.movementSpeedBonusAmount = movementSpeedBonusAmount;
+			this.sprintSpeedBoostAmount = sprintSpeedBoostAmount;
 			this.cooldownTicks = cooldownTicks;
 			this.attackArcStepDegrees = attackArcStepDegrees;
 			this.attackRearOffset = attackRearOffset;
@@ -732,6 +742,18 @@ public final class PetConfigManager {
 			}
 			if (MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION.equals(abilityType)) {
 				resolvedHealthRegeneration += (Math.max(1, level) - 1) * 0.01D;
+			}
+			double resolvedMovementSpeedBonus = movementSpeedBonusAmount;
+			if (MadokuPetManager.PET_ABILITY_MOVEMENT_SPEED_BONUS.equals(abilityType)) {
+				resolvedMovementSpeedBonus += (Math.max(1, level) - 1) * 0.005D;
+			}
+			double resolvedSprintSpeedBoost = sprintSpeedBoostAmount;
+			long resolvedCooldownTicks = cooldownTicks;
+			if (MadokuPetManager.PET_ABILITY_SPRINT_BOOST.equals(abilityType)) {
+				int levelDelta = Math.max(1, level) - 1;
+				resolvedSprintSpeedBoost += levelDelta * 0.025D;
+				resolvedEffectDurationTicks += levelDelta * 10L;
+				resolvedCooldownTicks = Math.max(0L, cooldownTicks - (levelDelta * 25L));
 			}
 			if (MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT.equals(abilityType)) {
 				int levelDelta = Math.max(1, level) - 1;
@@ -818,7 +840,9 @@ public final class PetConfigManager {
 				resolvedDamageReduction,
 				resolvedDamageBlock,
 				resolvedHealthRegeneration,
-				cooldownTicks,
+				resolvedMovementSpeedBonus,
+				resolvedSprintSpeedBoost,
+				resolvedCooldownTicks,
 				attackArcStepDegrees,
 				attackRearOffset,
 				attackRearSpread,
@@ -859,6 +883,8 @@ public final class PetConfigManager {
 				damageReductionAmount,
 				damageBlockAmount,
 				healthRegenerationAmount,
+				movementSpeedBonusAmount,
+				sprintSpeedBoostAmount,
 				0L,
 				attackArcStepDegrees,
 				attackRearOffset,
@@ -1049,6 +1075,8 @@ public final class PetConfigManager {
 				boolean usesBeeSwarm = MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(resolvedAbilityType);
 				boolean usesGoatCharge = MadokuPetManager.PET_ABILITY_GOAT_CHARGE.equals(resolvedAbilityType);
 				boolean usesReflectiveTaunt = MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT.equals(resolvedAbilityType);
+				boolean usesMovementSpeedBonus = MadokuPetManager.PET_ABILITY_MOVEMENT_SPEED_BONUS.equals(resolvedAbilityType);
+				boolean usesSprintBoost = MadokuPetManager.PET_ABILITY_SPRINT_BOOST.equals(resolvedAbilityType);
 				JsonObject ability = madoku.craft.java.core.json.JSONFormatAPIManager.object()
 					.put("id", abilityConfigId(resolvedAbilityType))
 					.put("ability-type", defaultAbilityType(resolvedAbilityType))
@@ -1135,6 +1163,14 @@ public final class PetConfigManager {
 					ability.addProperty("taunt-duration", 5.0D);
 					ability.addProperty("reflected-damage", 0.20D);
 					ability.addProperty("cooldown", 40.0D);
+				}
+				if (usesMovementSpeedBonus) {
+					ability.addProperty("movement-speed-bonus", 0.03D);
+				}
+				if (usesSprintBoost) {
+					ability.addProperty("sprint-speed-boost", 0.20D);
+					ability.addProperty("effect-duration-ticks", 100L);
+					ability.addProperty("cooldown", 30.0D);
 				}
 				if (MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(resolvedAbilityType)) {
 					ability.addProperty("player-damage-bonus", 1.2D);
@@ -1370,6 +1406,8 @@ public final class PetConfigManager {
 						),
 						PetSettings.clampDouble(getDouble(resolvedSource, "damage-block", 0.0D), 0.0D, 1024.0D),
 						Math.max(0.0D, getDouble(resolvedSource, "health-regeneration", 0.0D)),
+						PetSettings.clampDouble(getDouble(resolvedSource, "movement-speed-bonus", 0.0D), 0.0D, 10.0D),
+						PetSettings.clampDouble(getDouble(resolvedSource, "sprint-speed-boost", 0.0D), 0.0D, 10.0D),
 						PetSettings.clampLong(getLong(resolvedSource, "cooldown-ticks", 0L), 0L, 20L * 60L * 60L),
 						PetSettings.clampDouble(getDouble(resolvedSource, "attack-arc-step-degrees", defaultAttackArcStepDegreesForAbility(abilityType)), 0.0D, 90.0D),
 						PetSettings.clampDouble(getDouble(resolvedSource, "attack-rear-offset", defaultAttackRearOffsetForAbility(abilityType)), 0.0D, 4.0D),
@@ -1531,6 +1569,15 @@ public final class PetConfigManager {
 						descriptions.add("Automatic: Reveals nearby mobs; they take " + MadokuPetManager.formatPercent(ability.mobScanVulnerabilityAmount) + " more damage.");
 					} else if (MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(configuredAbility) && ability.attackDamage > 0.0F) {
 						descriptions.add("Automatic: Swarms nearby hostile mobs for " + MadokuPetManager.formatAbilityAmount(ability.attackDamage) + " damage per second.");
+					} else if (MadokuPetManager.PET_ABILITY_MOVEMENT_SPEED_BONUS.equals(configuredAbility)
+						&& ability.movementSpeedBonusAmount > 0.0D) {
+						descriptions.add("Passive: Increases movement speed by "
+							+ MadokuPetManager.formatPercent(ability.movementSpeedBonusAmount));
+					} else if (MadokuPetManager.PET_ABILITY_SPRINT_BOOST.equals(configuredAbility)
+						&& ability.sprintSpeedBoostAmount > 0.0D && ability.effectDurationTicks > 0L) {
+						descriptions.add("Active: When you sprint, gain "
+							+ MadokuPetManager.formatPercent(ability.sprintSpeedBoostAmount)
+							+ " sprint speed for " + MadokuPetManager.formatCooldownSeconds(ability.effectDurationTicks) + "s.");
 					}
 				}
 				return List.copyOf(descriptions);

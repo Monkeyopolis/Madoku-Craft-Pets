@@ -47,7 +47,8 @@ public abstract class LivingEntityPetBehaviorMixin {
 	@Inject(method = "getSpeed", at = @At("RETURN"), cancellable = true)
 	private void madokuCraft$scaleWebSlowMovement(CallbackInfoReturnable<Float> cir) {
 		LivingEntity entity = (LivingEntity) (Object) this;
-		cir.setReturnValue(PetAbilitiesAPIManager.scaleWebMovementSpeed(entity, cir.getReturnValue()));
+		float speed = PetAbilitiesAPIManager.scaleWebMovementSpeed(entity, cir.getReturnValue());
+		cir.setReturnValue(PetAbilitiesAPIManager.scalePlayerMovementSpeed(entity, speed));
 	}
 
 	@Inject(method = "hurtServer", at = @At("HEAD"), cancellable = true)

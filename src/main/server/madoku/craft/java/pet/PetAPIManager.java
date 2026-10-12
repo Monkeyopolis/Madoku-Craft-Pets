@@ -30,6 +30,8 @@ public final class PetAPIManager {
 	public static final String PET_ABILITY_BEE_SWARM = "bee_swarm";
 	public static final String PET_ABILITY_GOAT_CHARGE = "goat_charge";
 	public static final String PET_ABILITY_REFLECTIVE_TAUNT = "reflective_taunt";
+	public static final String PET_ABILITY_MOVEMENT_SPEED_BONUS = "movement_speed_bonus";
+	public static final String PET_ABILITY_SPRINT_BOOST = "sprint_boost";
 
 	private static final PetProvider UNAVAILABLE_PROVIDER = new PetProvider() { };
 	private static volatile PetProvider provider = UNAVAILABLE_PROVIDER;

@@ -7,6 +7,7 @@ import net.minecraft.world.item.ItemStack;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetHolder;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetInventory;
 import madoku.craft.java.pet.trade.MerchantEggVariantsClient;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 
 /** Owns all client initialization for the Pets module. */
 public final class MadokuPetClient {
@@ -20,6 +21,7 @@ public final class MadokuPetClient {
 		MadokuEntitiesClient.initialize();
 		PetRendererManager.initialize();
 		MerchantEggVariantsClient.initialize();
+		ClientTickEvents.END_CLIENT_TICK.register(client -> PetAbilitiesManager.tickClientSprintBoosts(client.player));
 		ClientPlayNetworking.registerGlobalReceiver(PetPayloadAPIManager.PetAbilityHudPayload.TYPE,
 			(payload, context) -> PetHudManagerClient.setAbilityCooldowns(payload.asArray()));
 		ClientPlayNetworking.registerGlobalReceiver(PetPayloadAPIManager.ReflectiveTauntVisualPayload.TYPE,

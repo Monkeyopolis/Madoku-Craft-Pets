@@ -46,6 +46,8 @@ public final class MadokuPetManager {
 	static final String PET_ABILITY_BEE_SWARM = "bee_swarm";
 	static final String PET_ABILITY_GOAT_CHARGE = "goat_charge";
 	static final String PET_ABILITY_REFLECTIVE_TAUNT = "reflective_taunt";
+	static final String PET_ABILITY_MOVEMENT_SPEED_BONUS = "movement_speed_bonus";
+	static final String PET_ABILITY_SPRINT_BOOST = "sprint_boost";
 	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
 	private static final Map<UUID, TeleportStamp> LAST_TELEPORT_STAMPS_BY_PLAYER = new HashMap<>();
 
@@ -189,6 +191,7 @@ public final class MadokuPetManager {
 
 		PetAbilitiesManager.tickWebControls(server);
 		PetAbilitiesManager.tickHealthRegeneration(server);
+		PetAbilitiesManager.tickSprintBoosts(server);
 		PetAbilitiesManager.tickManagedProjectileVolleys(server);
 		PetAbilitiesManager.tickManagedWebProjectiles(server);
 		PetAbilitiesManager.tickManagedExplosiveProjectiles(server);
@@ -283,6 +286,7 @@ public final class MadokuPetManager {
 		PetEntitiesManager.removeAllPets(server, playerId);
 		PetAbilitiesManager.stopBeeSwarmsForOwner(playerId);
 		PetAbilitiesManager.stopReflectiveTauntForOwner(server, playerId);
+		PetAbilitiesManager.clearPlayerSprintState(playerId);
 		NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);
 		LAST_TELEPORT_STAMPS_BY_PLAYER.remove(playerId);
 		PetHudManager.clearPlayer(playerId);
@@ -317,7 +321,10 @@ public final class MadokuPetManager {
 			nextDelay = PetEntitiesManager.syncPlayerPets(player);
 		} else {
 			PetEntitiesManager.removeAllPets(server, playerId);
-			nextDelay = PetAbilitiesManager.hasAutomaticPetAbilities(inventory) ? PetEntitiesManager.activeTickInterval(server) : -1L;
+			nextDelay = (PetAbilitiesManager.hasAutomaticPetAbilities(inventory)
+				|| PetAbilitiesManager.hasSprintBoostAbility(inventory))
+				? PetEntitiesManager.activeTickInterval(server)
+				: -1L;
 		}
 		LivingEntity ongoingReactiveTarget = PetAbilitiesManager.resolveOngoingReactiveTarget(player);
 

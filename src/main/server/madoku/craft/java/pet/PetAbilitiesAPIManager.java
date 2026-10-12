@@ -26,6 +26,7 @@ public final class PetAbilitiesAPIManager {
 	public static float getDamageVulnerabilityPercent(LivingEntity entity) { return provider.getDamageVulnerabilityPercent(entity); }
 	public static boolean isWebStunned(Entity entity) { return provider.isWebStunned(entity); }
 	public static float scaleWebMovementSpeed(LivingEntity entity, float speed) { return provider.scaleWebMovementSpeed(entity, speed); }
+	public static float scalePlayerMovementSpeed(LivingEntity entity, float speed) { return provider.scalePlayerMovementSpeed(entity, speed); }
 	public static Vec3 scaleWebMovement(LivingEntity entity, Vec3 movement) { return provider.scaleWebMovement(entity, movement); }
 	public static void handlePlayerLeftClick(ServerPlayer player) { provider.handlePlayerLeftClick(player); }
 	public static boolean hasAbility(ItemStack stack) { return provider.hasAbility(stack); }
