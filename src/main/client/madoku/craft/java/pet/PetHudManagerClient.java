@@ -35,6 +35,9 @@ public final class PetHudManagerClient {
 	private static final Identifier ABILITY_REFLECTIVE_TAUNT_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/reflective-taunt.png");
 	private static final Identifier ABILITY_SPRINT_BOOST_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/sprint-boost.png");
 	private static final Identifier ABILITY_WEB_PROJECTILE_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/web-projectile.png");
+	private static final Identifier ABILITY_LIFESTEAL_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/lifesteal.png");
+	private static final Identifier ABILITY_RAMPAGE_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/rampage.png");
+	private static final Identifier ABILITY_WOLFPACK_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/wolf-pack.png");
 	private static final RenderPipeline ABILITY_SLOT_PIPELINE = RenderPipelines.GUI_TEXTURED;
 	private static final int ABILITY_SLOT_TEXTURE_SIZE = 16;
 	private static final int HOTBAR_HALF_WIDTH = 91;
@@ -74,11 +77,9 @@ public final class PetHudManagerClient {
 			for (int cooldownIndex = 0; cooldownIndex < abilityCooldownEndTicks[slot].length; cooldownIndex++) {
 				int flatIndex = slot * PetAPIManager.MAX_ABILITY_COOLDOWNS_PER_PET + cooldownIndex;
 				int remaining = remainingTicks != null && flatIndex < remainingTicks.length ? Math.max(0, remainingTicks[flatIndex]) : 0;
-				if (remaining == 0) {
-					abilityCooldownEndTicks[slot][cooldownIndex] = 0L;
-				} else if (abilityCooldownEndTicks[slot][cooldownIndex] <= now) {
-					abilityCooldownEndTicks[slot][cooldownIndex] = now + remaining;
-				}
+				// The server sends the authoritative remaining duration. Always replace the
+				// local end tick so a world-time rollback cannot preserve an old end tick.
+				abilityCooldownEndTicks[slot][cooldownIndex] = remaining == 0 ? 0L : now + remaining;
 			}
 		}
 	}
@@ -145,7 +146,9 @@ public final class PetHudManagerClient {
 				PetAPIManager.PET_ABILITY_HEALTH_REGENERATION,
 				PetAPIManager.PET_ABILITY_MOB_SCAN,
 				PetAPIManager.PET_ABILITY_FALL_DAMAGE_REDUCTION,
-				PetAPIManager.PET_ABILITY_REFLECTIVE_TAUNT -> true;
+				PetAPIManager.PET_ABILITY_REFLECTIVE_TAUNT,
+				PetAPIManager.PET_ABILITY_WOLFPACK,
+				PetAPIManager.PET_ABILITY_RAMPAGE -> true;
 			default -> false;
 		};
 	}
@@ -210,6 +213,9 @@ public final class PetHudManagerClient {
 			case PetAPIManager.PET_ABILITY_REFLECTIVE_TAUNT -> ABILITY_REFLECTIVE_TAUNT_TEXTURE;
 			case PetAPIManager.PET_ABILITY_SPRINT_BOOST -> ABILITY_SPRINT_BOOST_TEXTURE;
 			case PetAPIManager.PET_ABILITY_WEB_PROJECTILE -> ABILITY_WEB_PROJECTILE_TEXTURE;
+			case PetAPIManager.PET_ABILITY_LIFESTEAL -> ABILITY_LIFESTEAL_TEXTURE;
+			case PetAPIManager.PET_ABILITY_WOLFPACK -> ABILITY_WOLFPACK_TEXTURE;
+			case PetAPIManager.PET_ABILITY_RAMPAGE -> ABILITY_RAMPAGE_TEXTURE;
 			default -> ABILITY_ARROW_TEXTURE;
 		};
 	}

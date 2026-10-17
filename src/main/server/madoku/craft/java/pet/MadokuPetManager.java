@@ -3,6 +3,7 @@ package madoku.craft.java.pet;
 import com.google.gson.JsonObject;
 
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.MinecraftServer;
@@ -48,10 +49,14 @@ public final class MadokuPetManager {
 	static final String PET_ABILITY_REFLECTIVE_TAUNT = "reflective_taunt";
 	static final String PET_ABILITY_MOVEMENT_SPEED_BONUS = "movement_speed_bonus";
 	static final String PET_ABILITY_SPRINT_BOOST = "sprint_boost";
+	static final String PET_ABILITY_LIFESTEAL = "lifesteal";
+	static final String PET_ABILITY_WOLFPACK = "wolfpack";
+	static final String PET_ABILITY_RAMPAGE = "rampage";
 	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
 	private static final Map<UUID, TeleportStamp> LAST_TELEPORT_STAMPS_BY_PLAYER = new HashMap<>();
 
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
+	private static long lastGameplayTick = Long.MIN_VALUE;
 	private static volatile long nextRuntimeTick = Long.MIN_VALUE;
 
 	private MadokuPetManager() {
@@ -67,11 +72,13 @@ public final class MadokuPetManager {
 		PetHudManager.initialize();
 		PetHagManager.initialize();
 		PetComponentsManager.initialize();
+		ServerLifecycleEvents.SERVER_STOPPING.register(PetAbilitiesManager::markServerStopping);
 		ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) -> {
 			if (!(entity instanceof ServerPlayer player)) {
 				return;
 			}
 
+			PetAbilitiesManager.invalidatePassiveAbilityBonuses(player.getUUID());
 			PetComponentsManager.clearPendingRespawnPetInventory(player.getUUID());
 			PetEntitiesManager.removeAllPets(player.level().getServer(), player.getUUID());
 			LAST_TELEPORT_STAMPS_BY_PLAYER.remove(player.getUUID());
@@ -92,6 +99,7 @@ public final class MadokuPetManager {
 			} else if (!PetComponentsManager.applyPendingRespawnPetInventory(newPlayer, oldPlayer.getUUID())) {
 				PetComponentsManager.copyToNewPlayer(oldPlayer, newPlayer);
 			}
+			PetAbilitiesManager.applyPlayerPassiveAbilityBonuses(newPlayer);
 			requestPetProcessing(newPlayer.level().getServer(), newPlayer.getUUID(), 0L);
 		});
 		ServerPlayerEvents.JOIN.register(MadokuPetManager::handlePlayerJoin);
@@ -113,6 +121,7 @@ public final class MadokuPetManager {
 		PetAbilitiesManager.reset();
 		AdaptiveIntervalAPIManager.clearSystem(PET_RUNTIME_ADAPTIVE_ID);
 		lastAutosaveBucket = Long.MIN_VALUE;
+		lastGameplayTick = Long.MIN_VALUE;
 		nextRuntimeTick = Long.MIN_VALUE;
 	}
 
@@ -171,8 +180,21 @@ public final class MadokuPetManager {
 			return;
 		}
 		MadokuEntities.onServerTick(server);
+		long gameplayTick = Math.max(0L, TimeAPIManager.getGameplayTicks());
+		if (lastGameplayTick != Long.MIN_VALUE && gameplayTick < lastGameplayTick) {
+			long rollbackTicks = lastGameplayTick - gameplayTick;
+			nextRuntimeTick = shiftTickForRollback(nextRuntimeTick, rollbackTicks);
+			for (Map.Entry<UUID, Long> entry : NEXT_PROCESS_TICKS_BY_PLAYER.entrySet()) {
+				if (entry.getValue() != null) {
+					entry.setValue(shiftTickForRollback(entry.getValue(), rollbackTicks));
+				}
+			}
+		}
+		lastGameplayTick = gameplayTick;
+		PetAbilitiesManager.handleGameplayTime(gameplayTick);
+		PetAbilitiesManager.restorePersistentTemporaryEntities(server);
 		if (!hasRuntimeWork()) return;
-		long now = Math.max(0L, TimeAPIManager.getGameplayTicks());
+		long now = gameplayTick;
 		if (nextRuntimeTick != Long.MIN_VALUE && now < nextRuntimeTick) return;
 		nextRuntimeTick = now + Math.max(1L, adaptiveTickInterval(server));
 		onPlayerTickPhase(server);
@@ -192,6 +214,8 @@ public final class MadokuPetManager {
 		PetAbilitiesManager.tickWebControls(server);
 		PetAbilitiesManager.tickHealthRegeneration(server);
 		PetAbilitiesManager.tickSprintBoosts(server);
+		PetAbilitiesManager.tickRampages(server);
+		PetAbilitiesManager.tickWolfpackWolves(server);
 		PetAbilitiesManager.tickManagedProjectileVolleys(server);
 		PetAbilitiesManager.tickManagedWebProjectiles(server);
 		PetAbilitiesManager.tickManagedExplosiveProjectiles(server);
@@ -207,6 +231,13 @@ public final class MadokuPetManager {
 		return !NEXT_PROCESS_TICKS_BY_PLAYER.isEmpty()
 			|| PetEntitiesManager.hasRuntimeWork()
 			|| PetAbilitiesManager.hasRuntimeWork();
+	}
+
+	private static long shiftTickForRollback(long tick, long rollbackTicks) {
+		if (tick == Long.MIN_VALUE || tick <= 0L || rollbackTicks <= 0L) {
+			return tick;
+		}
+		return tick > rollbackTicks ? tick - rollbackTicks : 0L;
 	}
 
 	static long adaptiveTickInterval(MinecraftServer server) {
@@ -255,6 +286,7 @@ public final class MadokuPetManager {
 
 	static void reloadConfig() {
 		PetConfigManager.reload();
+		PetAbilitiesManager.invalidateAllPassiveAbilityBonuses();
 	}
 
 	private static void handlePlayerJoin(ServerPlayer player) {
@@ -287,6 +319,8 @@ public final class MadokuPetManager {
 		PetAbilitiesManager.stopBeeSwarmsForOwner(playerId);
 		PetAbilitiesManager.stopReflectiveTauntForOwner(server, playerId);
 		PetAbilitiesManager.clearPlayerSprintState(playerId);
+		PetAbilitiesManager.clearPlayerCombatState(server, playerId);
+		PetAbilitiesManager.invalidatePassiveAbilityBonuses(playerId);
 		NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);
 		LAST_TELEPORT_STAMPS_BY_PLAYER.remove(playerId);
 		PetHudManager.clearPlayer(playerId);

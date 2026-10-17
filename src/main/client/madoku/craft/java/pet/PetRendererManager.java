@@ -13,6 +13,7 @@ import net.minecraft.client.model.animal.feline.AdultOcelotModel;
 import net.minecraft.client.model.animal.pig.PigModel;
 import net.minecraft.client.model.animal.sheep.SheepModel;
 import net.minecraft.client.model.animal.sheep.SheepFurModel;
+import net.minecraft.client.model.animal.wolf.AdultWolfModel;
 import net.minecraft.client.model.ambient.BatModel;
 import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.client.model.monster.creeper.CreeperModel;
@@ -33,6 +34,7 @@ import net.minecraft.client.renderer.entity.state.FelineRenderState;
 import net.minecraft.client.renderer.entity.state.SheepRenderState;
 import net.minecraft.client.renderer.entity.state.SkeletonRenderState;
 import net.minecraft.client.renderer.entity.state.ZombieRenderState;
+import net.minecraft.client.renderer.entity.state.WolfRenderState;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.Identifier;
@@ -65,6 +67,7 @@ public final class PetRendererManager {
 		private static final Identifier SKELETON_TEXTURE = texture("textures/entity/skeleton/skeleton.png");
 		private static final Identifier SPIDER_TEXTURE = texture("textures/entity/spider/spider.png");
 		private static final Identifier ZOMBIE_TEXTURE = texture("textures/entity/zombie/zombie.png");
+		private static final Identifier WOLF_TEXTURE = texture("textures/entity/wolf/wolf.png");
 
 		private final Map<String, PetModelProfile> profiles;
 
@@ -88,7 +91,8 @@ public final class PetRendererManager {
 				)),
 				Map.entry("minecraft:skeleton", new SkeletonProfile(new SkeletonModel<>(context.bakeLayer(ModelLayers.SKELETON)), SKELETON_TEXTURE)),
 				Map.entry("minecraft:spider", new LivingProfile(new SpiderModel(context.bakeLayer(ModelLayers.SPIDER)), SPIDER_TEXTURE)),
-				Map.entry("minecraft:zombie", new ZombieProfile(new ZombieModel<>(context.bakeLayer(ModelLayers.ZOMBIE)), ZOMBIE_TEXTURE))
+				Map.entry("minecraft:zombie", new ZombieProfile(new ZombieModel<>(context.bakeLayer(ModelLayers.ZOMBIE)), ZOMBIE_TEXTURE)),
+				Map.entry("minecraft:wolf", new WolfProfile(new AdultWolfModel(context.bakeLayer(ModelLayers.WOLF)), WOLF_TEXTURE))
 			);
 		}
 
@@ -361,6 +365,23 @@ public final class PetRendererManager {
 			ZombieRenderState state = copyLiving(source, new ZombieRenderState());
 			state.isAggressive = false;
 			state.isConverting = false;
+			model.setupAnim(state);
+			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
+		}
+	}
+
+	private static final class WolfProfile implements PetModelProfile {
+		private final AdultWolfModel model;
+		private final Identifier texture;
+
+		private WolfProfile(AdultWolfModel model, Identifier texture) {
+			this.model = model;
+			this.texture = texture;
+		}
+
+		@Override
+		public void render(PetRenderState source, PoseStack poseStack, SubmitNodeCollector collector) {
+			WolfRenderState state = copyLiving(source, new WolfRenderState());
 			model.setupAnim(state);
 			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
 		}

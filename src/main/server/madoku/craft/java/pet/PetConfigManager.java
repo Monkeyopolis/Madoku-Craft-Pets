@@ -91,6 +91,8 @@ public final class PetConfigManager {
 			case MadokuPetManager.PET_ABILITY_MOB_SCAN -> "Mob Scan:";
 			case MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT -> "Reflective Taunt:";
 			case MadokuPetManager.PET_ABILITY_SPRINT_BOOST -> "Sprint Boost:";
+			case MadokuPetManager.PET_ABILITY_WOLFPACK -> "Wolfpack:";
+			case MadokuPetManager.PET_ABILITY_RAMPAGE -> "Rampage:";
 			default -> abilityType == null || abilityType.isBlank() ? "Cooldown:" : abilityType + ":";
 		};
 	}
@@ -142,13 +144,17 @@ public final class PetConfigManager {
 				MadokuPetManager.PET_ABILITY_MOB_SCAN,
 				MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION,
 				MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT,
-				MadokuPetManager.PET_ABILITY_SPRINT_BOOST -> ABILITY_TYPE_SHARED;
+				MadokuPetManager.PET_ABILITY_SPRINT_BOOST,
+				MadokuPetManager.PET_ABILITY_WOLFPACK,
+				MadokuPetManager.PET_ABILITY_RAMPAGE -> ABILITY_TYPE_SHARED;
 			default -> ABILITY_TYPE_STANDALONE;
 		};
 	}
 
 	static boolean defaultDuplicateLevelScaling(String abilityType) {
-		return false;
+		String normalized = normalizeAbilityId(abilityType);
+		return MadokuPetManager.PET_ABILITY_WOLFPACK.equals(normalized)
+			|| MadokuPetManager.PET_ABILITY_RAMPAGE.equals(normalized);
 	}
 
 	static String normalizeAbilityRange(String value, String fallback) {
@@ -335,6 +341,7 @@ public final class PetConfigManager {
 		if ("minecraft:iron-golem".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT;
 		if ("minecraft:ocelot".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_MOVEMENT_SPEED_BONUS;
 		if ("minecraft:zombie".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS;
+		if ("minecraft:wolf".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_LIFESTEAL;
 		return MadokuPetManager.PET_ABILITY_NONE;
 	}
 
@@ -368,6 +375,7 @@ public final class PetConfigManager {
 			|| "minecraft:spider".equals(normalizedItemId)
 			|| "minecraft:iron-golem".equals(normalizedItemId)) return RarityAPIManager.Tier.RARE.id();
 		if ("minecraft:ocelot".equals(normalizedItemId)) return RarityAPIManager.Tier.LEGENDARY.id();
+		if ("minecraft:wolf".equals(normalizedItemId)) return RarityAPIManager.Tier.MYTHIC.id();
 		return RarityAPIManager.Tier.COMMON.id();
 	}
 
@@ -723,7 +731,10 @@ public final class PetConfigManager {
 			}
 			double resolvedPlayerDamageBonus = playerDamageBonusAmount;
 			if (MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType)) {
-				resolvedPlayerDamageBonus += (Math.max(1, level) - 1) * 0.1D;
+				resolvedPlayerDamageBonus += (Math.max(1, level) - 1) * 0.25D;
+			}
+			if (MadokuPetManager.PET_ABILITY_RAMPAGE.equals(abilityType)) {
+				resolvedPlayerDamageBonus += (Math.max(1, level) - 1) * 0.0125D;
 			}
 			double resolvedFallDamageReduction = fallDamageReductionAmount;
 			double resolvedMaxHealthBonus = maxHealthBonusAmount;
@@ -742,6 +753,13 @@ public final class PetConfigManager {
 			}
 			if (MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION.equals(abilityType)) {
 				resolvedHealthRegeneration += (Math.max(1, level) - 1) * 0.01D;
+			}
+			if (MadokuPetManager.PET_ABILITY_LIFESTEAL.equals(abilityType)) {
+				resolvedHealthRegeneration += (Math.max(1, level) - 1) * 0.01D;
+			}
+			if (MadokuPetManager.PET_ABILITY_WOLFPACK.equals(abilityType)) {
+				resolvedProjectileCount += (Math.max(1, level) - 1) * 0.5D;
+				resolvedEffectDurationTicks += (Math.max(1, level) - 1) * 25L;
 			}
 			double resolvedMovementSpeedBonus = movementSpeedBonusAmount;
 			if (MadokuPetManager.PET_ABILITY_MOVEMENT_SPEED_BONUS.equals(abilityType)) {
@@ -1077,6 +1095,9 @@ public final class PetConfigManager {
 				boolean usesReflectiveTaunt = MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT.equals(resolvedAbilityType);
 				boolean usesMovementSpeedBonus = MadokuPetManager.PET_ABILITY_MOVEMENT_SPEED_BONUS.equals(resolvedAbilityType);
 				boolean usesSprintBoost = MadokuPetManager.PET_ABILITY_SPRINT_BOOST.equals(resolvedAbilityType);
+				boolean usesLifesteal = MadokuPetManager.PET_ABILITY_LIFESTEAL.equals(resolvedAbilityType);
+				boolean usesWolfpack = MadokuPetManager.PET_ABILITY_WOLFPACK.equals(resolvedAbilityType);
+				boolean usesRampage = MadokuPetManager.PET_ABILITY_RAMPAGE.equals(resolvedAbilityType);
 				JsonObject ability = madoku.craft.java.core.json.JSONFormatAPIManager.object()
 					.put("id", abilityConfigId(resolvedAbilityType))
 					.put("ability-type", defaultAbilityType(resolvedAbilityType))
@@ -1172,8 +1193,21 @@ public final class PetConfigManager {
 					ability.addProperty("effect-duration-ticks", 100L);
 					ability.addProperty("cooldown", 30.0D);
 				}
+				if (usesLifesteal) {
+					ability.addProperty("lifesteal", 0.06D);
+				}
+				if (usesWolfpack) {
+					ability.addProperty("projectile-count", 1.0D);
+					ability.addProperty("effect-duration-ticks", 300L);
+					ability.addProperty("cooldown", 90.0D);
+				}
+				if (usesRampage) {
+					ability.addProperty("damage-boost", 0.10D);
+					ability.addProperty("effect-duration-ticks", 300L);
+					ability.addProperty("cooldown", 45.0D);
+				}
 				if (MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(resolvedAbilityType)) {
-					ability.addProperty("player-damage-bonus", 1.2D);
+					ability.addProperty("player-damage-bonus", 2.0D);
 				}
 				if (MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(resolvedAbilityType)) {
 					ability.addProperty("fall-damage-reduction", 0.30D);
@@ -1236,7 +1270,7 @@ public final class PetConfigManager {
 					getDouble(
 						source,
 						"player-damage-bonus",
-						MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType) ? 1.2D : 0.0D
+						MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType) ? 2.0D : 0.0D
 					),
 					0.0D,
 					1024.0D
@@ -1388,7 +1422,10 @@ public final class PetConfigManager {
 							getDouble(
 								resolvedSource,
 								"player-damage-bonus",
-								MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType) ? 1.2D : 0.0D
+								MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType)
+									? 2.0D
+									: getDouble(resolvedSource, "damage-boost",
+										MadokuPetManager.PET_ABILITY_RAMPAGE.equals(abilityType) ? 0.10D : 0.0D)
 							),
 							0.0D,
 							1024.0D
@@ -1405,7 +1442,11 @@ public final class PetConfigManager {
 							1.0D
 						),
 						PetSettings.clampDouble(getDouble(resolvedSource, "damage-block", 0.0D), 0.0D, 1024.0D),
-						Math.max(0.0D, getDouble(resolvedSource, "health-regeneration", 0.0D)),
+						Math.max(0.0D, getDouble(
+							resolvedSource,
+							MadokuPetManager.PET_ABILITY_LIFESTEAL.equals(abilityType) ? "lifesteal" : "health-regeneration",
+							0.0D
+						)),
 						PetSettings.clampDouble(getDouble(resolvedSource, "movement-speed-bonus", 0.0D), 0.0D, 10.0D),
 						PetSettings.clampDouble(getDouble(resolvedSource, "sprint-speed-boost", 0.0D), 0.0D, 10.0D),
 						PetSettings.clampLong(getLong(resolvedSource, "cooldown-ticks", 0L), 0L, 20L * 60L * 60L),
@@ -1578,6 +1619,19 @@ public final class PetConfigManager {
 						descriptions.add("Active: When you sprint, gain "
 							+ MadokuPetManager.formatPercent(ability.sprintSpeedBoostAmount)
 							+ " sprint speed for " + MadokuPetManager.formatCooldownSeconds(ability.effectDurationTicks) + "s.");
+					} else if (MadokuPetManager.PET_ABILITY_LIFESTEAL.equals(configuredAbility)
+						&& ability.healthRegenerationAmount > 0.0D) {
+						descriptions.add("Passive: Heals for " + MadokuPetManager.formatPercent(ability.healthRegenerationAmount)
+							+ " of final damage dealt by you or your pets.");
+					} else if (MadokuPetManager.PET_ABILITY_WOLFPACK.equals(configuredAbility)
+						&& ability.effectDurationTicks > 0L) {
+						descriptions.add("Reactive: Spawns wolves for "
+							+ MadokuPetManager.formatCooldownSeconds(ability.effectDurationTicks) + "s when attacked.");
+					} else if (MadokuPetManager.PET_ABILITY_RAMPAGE.equals(configuredAbility)
+						&& ability.playerDamageBonusAmount > 0.0D && ability.effectDurationTicks > 0L) {
+						descriptions.add("Active: When you deal damage, increase your and your pets' damage by "
+							+ MadokuPetManager.formatPercent(ability.playerDamageBonusAmount) + " for "
+							+ MadokuPetManager.formatCooldownSeconds(ability.effectDurationTicks) + "s.");
 					}
 				}
 				return List.copyOf(descriptions);
@@ -1657,7 +1711,7 @@ public final class PetConfigManager {
 					idleWanderRadius, idleMinIntervalTicks, idleMaxIntervalTicks,
 					soundVolumeMultiplier, abilityType, abilityTypes, (float) resolvedAttackDamage, attackSpeed,
 					effectDurationTicks, playerDamageBonusAmount + (MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType)
-						? (safeLevel - 1) * 0.1D
+						? (safeLevel - 1) * 0.25D
 						: 0.0D),
 					resolvedFallDamageReduction,
 					maxHealthBonusAmount + (MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS.equals(abilityType)

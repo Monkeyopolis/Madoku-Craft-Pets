@@ -35,6 +35,7 @@ public final class MadokuPetAbilitiesProvider implements PetAbilitiesProvider {
 	@Override public float applyDamageBlock(LivingEntity entity, DamageSource source, float amount) { return PetAbilitiesManager.applyDamageBlock(entity, source, amount); }
 	@Override public void applyPlayerMaxHealthAbilityBonus(ServerPlayer player) { PetAbilitiesManager.applyPlayerMaxHealthAbilityBonus(player); }
 	@Override public void applyPlayerDamageAbilityBonus(ServerPlayer player) { PetAbilitiesManager.applyPlayerDamageAbilityBonus(player); }
+	@Override public float applyOutgoingDamage(DamageSource source, float amount) { return PetAbilitiesManager.applyOutgoingDamage(source, amount); }
 	@Override public boolean hasAbility(Entity entity) { return PetAbilitiesManager.hasAbility(entity); }
 	@Override public void recordManagedPetDamage(Entity entity, DamageSource source, float amount) { PetAbilitiesManager.recordManagedPetDamage(entity, source, amount); }
 	@Override public boolean isReflectiveTauntTarget(Entity entity) { return PetAbilitiesManager.isReflectiveTauntTarget(entity); }

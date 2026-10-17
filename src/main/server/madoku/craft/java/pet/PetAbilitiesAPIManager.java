@@ -43,6 +43,7 @@ public final class PetAbilitiesAPIManager {
 	public static float applyDamageBlock(LivingEntity entity, DamageSource source, float amount) { return provider.applyDamageBlock(entity, source, amount); }
 	public static void applyPlayerMaxHealthAbilityBonus(ServerPlayer player) { provider.applyPlayerMaxHealthAbilityBonus(player); }
 	public static void applyPlayerDamageAbilityBonus(ServerPlayer player) { provider.applyPlayerDamageAbilityBonus(player); }
+	public static float applyOutgoingDamage(DamageSource source, float amount) { return provider.applyOutgoingDamage(source, amount); }
 	public static boolean hasAbility(Entity entity) { return provider.hasAbility(entity); }
 	public static void recordManagedPetDamage(Entity entity, DamageSource source, float amount) { provider.recordManagedPetDamage(entity, source, amount); }
 	public static boolean isReflectiveTauntTarget(Entity entity) { return provider.isReflectiveTauntTarget(entity); }

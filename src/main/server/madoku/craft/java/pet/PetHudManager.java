@@ -75,12 +75,21 @@ public final class PetHudManager {
 			addWrappedLoreLines(lines, "Level: " + PetEntitiesManager.petLevel(stack), ChatFormatting.AQUA);
 		}
 		for (String description : rule.abilityDescriptions()) {
-			addWrappedLoreLines(lines, description, ChatFormatting.GOLD);
+			addWrappedLoreLines(lines, description, abilityDescriptionFormatting(description));
 		}
 		for (String cooldownDescription : rule.cooldownDescriptions()) {
 			addWrappedLoreLines(lines, cooldownDescription, ChatFormatting.GRAY);
 		}
 		if (!lines.isEmpty()) stack.set(DataComponents.LORE, new ItemLore(lines));
+	}
+
+	private static ChatFormatting abilityDescriptionFormatting(String description) {
+		if (description == null) return ChatFormatting.GOLD;
+		if (description.startsWith("Active:")) return ChatFormatting.GOLD;
+		if (description.startsWith("Passive:")) return ChatFormatting.GREEN;
+		if (description.startsWith("Reactive:")) return ChatFormatting.LIGHT_PURPLE;
+		if (description.startsWith("Automatic:")) return ChatFormatting.AQUA;
+		return ChatFormatting.GOLD;
 	}
 
 	private static void addWrappedLoreLines(List<Component> lines, String text, ChatFormatting formatting) {

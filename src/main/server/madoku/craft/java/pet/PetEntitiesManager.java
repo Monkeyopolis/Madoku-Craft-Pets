@@ -83,7 +83,7 @@ public final class PetEntitiesManager {
 		if (itemsRegistered) return;
 		String[] petIds = {
 			"minecraft:bat", "minecraft:bee", "minecraft:chicken", "minecraft:cow", "minecraft:creeper",
-			"minecraft:goat", "minecraft:iron-golem", "minecraft:ocelot", "minecraft:pig", "minecraft:sheep", "minecraft:skeleton", "minecraft:spider", "minecraft:zombie"
+			"minecraft:goat", "minecraft:iron-golem", "minecraft:ocelot", "minecraft:pig", "minecraft:sheep", "minecraft:skeleton", "minecraft:spider", "minecraft:wolf", "minecraft:zombie"
 		};
 		for (String petId : petIds) {
 			String itemPath = PetConfigManager.petItemPath(petId);
@@ -264,6 +264,12 @@ public final class PetEntitiesManager {
 			defaults.put("sheep", PetRule.defaultsForEntity("minecraft:sheep", MadokuPetManager.PET_ABILITY_DAMAGE_REDUCTION));
 			defaults.put("skeleton", PetRule.defaultsForEntity("minecraft:skeleton", MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW));
 			defaults.put("spider", PetRule.defaultsForEntity("minecraft:spider", MadokuPetManager.PET_ABILITY_WEB_PROJECTILE));
+			defaults.put("wolf", PetRule.defaultsForEntity(
+				"minecraft:wolf",
+				MadokuPetManager.PET_ABILITY_LIFESTEAL,
+				MadokuPetManager.PET_ABILITY_WOLFPACK,
+				MadokuPetManager.PET_ABILITY_RAMPAGE
+			));
 			defaults.put("zombie", PetRule.defaultsForEntity("minecraft:zombie", MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS));
 			return defaults;
 		}
@@ -349,6 +355,7 @@ public final class PetEntitiesManager {
 
 	static void removeAllPets(MinecraftServer server, UUID playerId) {
 		PetAbilitiesManager.stopBeeSwarmsForOwner(playerId);
+		PetAbilitiesManager.stopWolfpackWolvesForOwner(server, playerId);
 		UUID[] petIds = PET_IDS_BY_PLAYER.remove(playerId);
 		boolean needsIndexRecovery = petIds == null;
 		PET_INDEX_RECOVERED_OWNERS.remove(playerId);

@@ -10,8 +10,10 @@ import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArgs;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
 
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityPetBehaviorMixin {
@@ -28,6 +30,19 @@ public abstract class LivingEntityPetBehaviorMixin {
 		} else if (entity.isNoGravity()) {
 			entity.setDeltaMovement(PetAbilitiesAPIManager.scaleWebMovement(entity, entity.getDeltaMovement()));
 		}
+	}
+
+	@ModifyArgs(
+		method = "actuallyHurt(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/damagesource/DamageSource;F)V",
+		at = @At(
+			value = "INVOKE",
+			target = "Lnet/minecraft/world/entity/LivingEntity;getDamageAfterArmorAbsorb(Lnet/minecraft/world/damagesource/DamageSource;F)F"
+		)
+	)
+	private void madokuCraft$applyRampageDamageBoost(Args args) {
+		DamageSource source = (DamageSource) args.get(0);
+		float amount = (Float) args.get(1);
+		args.set(1, PetAbilitiesAPIManager.applyOutgoingDamage(source, amount));
 	}
 
 	@Inject(method = "hurtServer", at = @At("HEAD"), cancellable = true)

@@ -2,6 +2,7 @@ package madoku.craft.java.pet;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.server.MinecraftServer;
@@ -37,6 +38,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.animal.wolf.Wolf;
+import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -79,6 +82,9 @@ public final class PetAbilitiesManager {
 	private static final String PET_ABILITY_REFLECTIVE_TAUNT = MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT;
 	private static final String PET_ABILITY_MOVEMENT_SPEED_BONUS = MadokuPetManager.PET_ABILITY_MOVEMENT_SPEED_BONUS;
 	private static final String PET_ABILITY_SPRINT_BOOST = MadokuPetManager.PET_ABILITY_SPRINT_BOOST;
+	private static final String PET_ABILITY_LIFESTEAL = MadokuPetManager.PET_ABILITY_LIFESTEAL;
+	private static final String PET_ABILITY_WOLFPACK = MadokuPetManager.PET_ABILITY_WOLFPACK;
+	private static final String PET_ABILITY_RAMPAGE = MadokuPetManager.PET_ABILITY_RAMPAGE;
 	private static final String IRON_GOLEM_PET_ID = "minecraft:iron-golem";
 	private static final long REFLECTIVE_TAUNT_ATTACK_DELAY_TICKS = 10L;
 	private static final long REFLECTIVE_TAUNT_DAMAGE_WAVE_TICKS = 2L;
@@ -144,6 +150,20 @@ public final class PetAbilitiesManager {
 	private static final double REFLECTIVE_TAUNT_DUPLICATE_RADIUS = 1.0D;
 	private static final long REFLECTIVE_TAUNT_DUPLICATE_DURATION_TICKS = 20L;
 	private static final double REFLECTIVE_TAUNT_DUPLICATE_REFLECTION = 0.025D;
+	private static final double WOLFPACK_RADIUS = 16.0D;
+	private static final double WOLFPACK_DUPLICATE_WOLVES = 1.0D;
+	private static final long WOLFPACK_DUPLICATE_DURATION_TICKS = 50L;
+	private static final double RAMPAGE_DUPLICATE_DAMAGE_BOOST = 0.025D;
+	private static final String WOLFPACK_SUMMON_TAG = "madoku-craft.wolfpack-summon";
+	private static final String WOLFPACK_OWNER_TAG_PREFIX = "madoku-craft.wolfpack-owner:";
+	private static final String WOLFPACK_EXPIRES_TAG_PREFIX = "madoku-craft.wolfpack-expires:";
+	private static final String REFLECTIVE_TAUNT_SUMMON_TAG = "madoku-craft.reflective-taunt-summon";
+	private static final String REFLECTIVE_TAUNT_OWNER_TAG_PREFIX = "madoku-craft.reflective-taunt-owner:";
+	private static final String REFLECTIVE_TAUNT_ACTIVE_UNTIL_TAG_PREFIX = "madoku-craft.reflective-taunt-active-until:";
+	private static final String REFLECTIVE_TAUNT_EXPIRES_TAG_PREFIX = "madoku-craft.reflective-taunt-expires:";
+	private static final String REFLECTIVE_TAUNT_RADIUS_TAG_PREFIX = "madoku-craft.reflective-taunt-radius:";
+	private static final String REFLECTIVE_TAUNT_REFLECTION_TAG_PREFIX = "madoku-craft.reflective-taunt-reflection:";
+	private static final long PERSISTENT_TEMPORARY_ENTITY_SCAN_INTERVAL_TICKS = 20L;
 	private static final Map<UUID, Map<Integer, Map<String, Long>>> PLAYER_ABILITY_COOLDOWNS = new HashMap<>();
 	private static final List<PendingPetAttack> PENDING_PET_ATTACKS = new ArrayList<>();
 	private static final Map<UUID, Long> NEXT_BEE_TARGET_SCAN_TICK = new HashMap<>();
@@ -158,12 +178,20 @@ public final class PetAbilitiesManager {
 	private static final Map<UUID, GoatChargeState> ACTIVE_GOAT_CHARGES = new ConcurrentHashMap<>();
 	private static final Map<UUID, ReflectiveTauntState> ACTIVE_REFLECTIVE_TAUNTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, SprintBoostState> ACTIVE_SPRINT_BOOSTS = new ConcurrentHashMap<>();
+	private static final Map<UUID, RampageState> ACTIVE_RAMPAGES = new ConcurrentHashMap<>();
+	private static final Map<UUID, WolfpackWolfState> ACTIVE_WOLFPACK_WOLVES = new ConcurrentHashMap<>();
 	private static final Map<UUID, Boolean> LAST_PLAYER_SPRINTING = new HashMap<>();
 	private static final Map<UUID, SprintBoostState> CLIENT_ACTIVE_SPRINT_BOOSTS = new HashMap<>();
 	private static final Map<UUID, Long> CLIENT_SPRINT_COOLDOWNS = new HashMap<>();
 	private static final Map<UUID, Boolean> CLIENT_LAST_PLAYER_SPRINTING = new HashMap<>();
 	private static final Map<UUID, Float> MOB_SCAN_VULNERABILITY_BY_ENTITY = new ConcurrentHashMap<>();
 	private static final Map<UUID, ExplosiveVulnerabilityState> EXPLOSIVE_VULNERABILITY_BY_ENTITY = new ConcurrentHashMap<>();
+	private static final Map<UUID, Entity> PERSISTENT_TEMPORARY_ENTITIES_BY_ID = new ConcurrentHashMap<>();
+	private static final Map<UUID, PassiveBonuses> PASSIVE_BONUSES_BY_PLAYER = new HashMap<>();
+	private static long nextPersistentTemporaryEntityScanTick = Long.MIN_VALUE;
+	private static boolean persistentTemporaryEntityRecoveryPending = true;
+	private static long lastGameplayTick = Long.MIN_VALUE;
+	private static MinecraftServer stoppingServer;
 
 	static void reset() {
 		PLAYER_ABILITY_COOLDOWNS.clear();
@@ -181,12 +209,181 @@ public final class PetAbilitiesManager {
 		ACTIVE_GOAT_CHARGES.clear();
 		ACTIVE_REFLECTIVE_TAUNTS.clear();
 		ACTIVE_SPRINT_BOOSTS.clear();
+		ACTIVE_RAMPAGES.clear();
+		ACTIVE_WOLFPACK_WOLVES.clear();
 		LAST_PLAYER_SPRINTING.clear();
 		CLIENT_ACTIVE_SPRINT_BOOSTS.clear();
 		CLIENT_SPRINT_COOLDOWNS.clear();
 		CLIENT_LAST_PLAYER_SPRINTING.clear();
 		MOB_SCAN_VULNERABILITY_BY_ENTITY.clear();
 		EXPLOSIVE_VULNERABILITY_BY_ENTITY.clear();
+		PERSISTENT_TEMPORARY_ENTITIES_BY_ID.clear();
+		PASSIVE_BONUSES_BY_PLAYER.clear();
+		nextPersistentTemporaryEntityScanTick = Long.MIN_VALUE;
+		persistentTemporaryEntityRecoveryPending = true;
+		lastGameplayTick = Long.MIN_VALUE;
+		stoppingServer = null;
+	}
+
+	static void markServerStopping(MinecraftServer server) {
+		stoppingServer = server;
+	}
+
+	/** Keeps tick-based pet state relative when the shared gameplay clock is rewound. */
+	static void handleGameplayTime(long now) {
+		now = Math.max(0L, now);
+		long previous = lastGameplayTick;
+		lastGameplayTick = now;
+		if (previous == Long.MIN_VALUE || now >= previous) {
+			return;
+		}
+
+		nextPersistentTemporaryEntityScanTick = shiftTickForRollback(nextPersistentTemporaryEntityScanTick, previous, now);
+		for (Map.Entry<UUID, Long> entry : NEXT_BEE_TARGET_SCAN_TICK.entrySet()) {
+			if (entry.getValue() != null) {
+				entry.setValue(shiftTickForRollback(entry.getValue(), previous, now));
+			}
+		}
+		for (ListIterator<PendingPetAttack> iterator = PENDING_PET_ATTACKS.listIterator(); iterator.hasNext();) {
+			PendingPetAttack attack = iterator.next();
+			if (attack != null) {
+				iterator.set(new PendingPetAttack(
+					attack.playerId(), attack.slot(), attack.abilityType(), attack.targetId(), attack.spawnPosition(),
+					shiftTickForRollback(attack.dueTick(), previous, now),
+					shiftTickForRollback(attack.expiresAtTick(), previous, now)
+				));
+			}
+		}
+		for (Map.Entry<UUID, ProjectileVolleyState> entry : ACTIVE_PROJECTILE_VOLLEYS.entrySet()) {
+			ProjectileVolleyState state = entry.getValue();
+			if (state != null) {
+				ACTIVE_PROJECTILE_VOLLEYS.replace(entry.getKey(), state, new ProjectileVolleyState(
+					state.abilityType, state.ownerUuid, state.dimensionId, state.targetUuid, state.spawnPosition,
+					state.rule, state.ability, state.abilityGroup, state.projectileCount, state.nextProjectileIndex,
+					shiftTickForRollback(state.nextLaunchTick, previous, now), state.soundEvent, state.soundVolume, state.soundPitch
+				));
+			}
+		}
+		for (Map.Entry<UUID, WebControlState> entry : ACTIVE_WEB_CONTROLS.entrySet()) {
+			WebControlState state = entry.getValue();
+			if (state != null) {
+				ACTIVE_WEB_CONTROLS.replace(entry.getKey(), state, new WebControlState(
+					shiftTickForRollback(state.stunUntilTick, previous, now),
+					shiftTickForRollback(state.slowUntilTick, previous, now), state.slowPercentage
+				));
+			}
+		}
+		for (Map.Entry<UUID, HealthRegenerationState> entry : ACTIVE_HEALTH_REGENERATIONS.entrySet()) {
+			HealthRegenerationState state = entry.getValue();
+			if (state != null) {
+				ACTIVE_HEALTH_REGENERATIONS.replace(entry.getKey(), state, new HealthRegenerationState(
+					shiftTickForRollback(state.nextHealTick, previous, now),
+					shiftTickForRollback(state.untilTick, previous, now), state.healPercentage
+				));
+			}
+		}
+		for (Map.Entry<UUID, ChickenEggProjectileState> entry : ACTIVE_CHICKEN_EGG_PROJECTILES.entrySet()) {
+			ChickenEggProjectileState state = entry.getValue();
+			if (state != null) {
+				ACTIVE_CHICKEN_EGG_PROJECTILES.replace(entry.getKey(), state, new ChickenEggProjectileState(
+					state.ownerUuid, state.dimensionId, state.damage, state.radius,
+					shiftTickForRollback(state.expiresAtTick, previous, now)
+				));
+			}
+		}
+		for (Map.Entry<UUID, ChickenEggVolleyState> entry : ACTIVE_CHICKEN_EGG_VOLLEYS.entrySet()) {
+			ChickenEggVolleyState state = entry.getValue();
+			if (state != null) {
+				ACTIVE_CHICKEN_EGG_VOLLEYS.replace(entry.getKey(), state, new ChickenEggVolleyState(
+					state.ownerUuid, state.dimensionId, state.targetPosition, state.remainingProjectiles,
+					shiftTickForRollback(state.nextLaunchTick, previous, now), state.damage, state.radius,
+					state.lifetimeTicks, state.projectileIntervalTicks
+				));
+			}
+		}
+		for (Map.Entry<String, BeeSwarmState> entry : ACTIVE_BEE_SWARMS.entrySet()) {
+			BeeSwarmState state = entry.getValue();
+			if (state != null) {
+				ACTIVE_BEE_SWARMS.replace(entry.getKey(), state, new BeeSwarmState(
+					state.ownerUuid, state.slot, state.dimensionId, state.targetUuid,
+					shiftTickForRollback(state.startedGameplayTick, previous, now), state.maxDurationTicks,
+					shiftTickForRollback(state.nextDamageTick, previous, now), state.damageRampStep,
+					state.orbitAngle, state.position
+				));
+			}
+		}
+		for (Map.Entry<UUID, SprintBoostState> entry : ACTIVE_SPRINT_BOOSTS.entrySet()) {
+			SprintBoostState state = entry.getValue();
+			if (state != null) {
+				ACTIVE_SPRINT_BOOSTS.replace(entry.getKey(), state, new SprintBoostState(
+					shiftTickForRollback(state.untilTick, previous, now), state.cooldownTicks, state.speedBonus
+				));
+			}
+		}
+		for (ReflectiveTauntState state : ACTIVE_REFLECTIVE_TAUNTS.values()) {
+			if (state == null) {
+				continue;
+			}
+			state.startedTick = shiftTickForRollback(state.startedTick, previous, now);
+			state.untilTick = shiftTickForRollback(state.untilTick, previous, now);
+			state.waveStartedTick = shiftTickForRollback(state.waveStartedTick, previous, now);
+			state.waveUntilTick = shiftTickForRollback(state.waveUntilTick, previous, now);
+			for (Map.Entry<UUID, Long> attackerEntry : state.nextHitTickByAttacker.entrySet()) {
+				if (attackerEntry.getValue() != null) {
+					attackerEntry.setValue(shiftTickForRollback(attackerEntry.getValue(), previous, now));
+				}
+			}
+		}
+		for (Map.Entry<UUID, Map<Integer, Map<String, Long>>> playerEntry : PLAYER_ABILITY_COOLDOWNS.entrySet()) {
+			if (playerEntry.getValue() == null) {
+				continue;
+			}
+			boolean changed = false;
+			for (Map<String, Long> slotCooldowns : playerEntry.getValue().values()) {
+				if (slotCooldowns == null) {
+					continue;
+				}
+				for (Map.Entry<String, Long> cooldownEntry : slotCooldowns.entrySet()) {
+					Long cooldownTick = cooldownEntry.getValue();
+					if (cooldownTick != null) {
+						long shifted = shiftTickForRollback(cooldownTick, previous, now);
+						changed |= shifted != cooldownTick;
+						cooldownEntry.setValue(shifted);
+					}
+				}
+			}
+			if (changed) {
+				PetHudManager.markAbilityHudDirty(playerEntry.getKey());
+			}
+		}
+
+		for (Map.Entry<UUID, RampageState> entry : ACTIVE_RAMPAGES.entrySet()) {
+			RampageState state = entry.getValue();
+			if (state != null) {
+				ACTIVE_RAMPAGES.replace(entry.getKey(), state,
+					new RampageState(shiftTickForRollback(state.untilTick(), previous, now), state.damageBoost()));
+			}
+		}
+		for (Map.Entry<UUID, WolfpackWolfState> entry : ACTIVE_WOLFPACK_WOLVES.entrySet()) {
+			WolfpackWolfState state = entry.getValue();
+			if (state != null) {
+				ACTIVE_WOLFPACK_WOLVES.replace(entry.getKey(), state,
+					new WolfpackWolfState(state.ownerUuid(), state.dimensionId(),
+						shiftTickForRollback(state.expiresAtTick(), previous, now)));
+			}
+		}
+	}
+
+	private static long shiftTickForRollback(long tick, long previous, long now) {
+		if (tick <= 0L || previous <= now) {
+			return tick;
+		}
+		long rollbackTicks = previous - now;
+		return tick > rollbackTicks ? tick - rollbackTicks : 0L;
+	}
+
+	private static boolean isServerStopping(MinecraftServer server) {
+		return server != null && stoppingServer == server;
 	}
 
 	static boolean hasRuntimeWork() {
@@ -201,7 +398,103 @@ public final class PetAbilitiesManager {
 			|| !ACTIVE_BEE_SWARMS.isEmpty()
 			|| !ACTIVE_GOAT_CHARGES.isEmpty()
 			|| !ACTIVE_REFLECTIVE_TAUNTS.isEmpty()
-			|| !ACTIVE_SPRINT_BOOSTS.isEmpty();
+			|| !ACTIVE_SPRINT_BOOSTS.isEmpty()
+			|| !ACTIVE_RAMPAGES.isEmpty()
+			|| !ACTIVE_WOLFPACK_WOLVES.isEmpty();
+	}
+
+	/** Restores temporary summon lifetime state from entity tags after a server restart. */
+	static void restorePersistentTemporaryEntities(MinecraftServer server) {
+		if (server == null) {
+			return;
+		}
+
+		long now = TimeAPIManager.getGameplayTicks();
+		if (nextPersistentTemporaryEntityScanTick != Long.MIN_VALUE && now < nextPersistentTemporaryEntityScanTick) {
+			return;
+		}
+		nextPersistentTemporaryEntityScanTick = safeAdd(now, PERSISTENT_TEMPORARY_ENTITY_SCAN_INTERVAL_TICKS);
+		boolean enabled = PetConfigManager.isEnabled();
+
+		if (persistentTemporaryEntityRecoveryPending) {
+			for (ServerLevel level : server.getAllLevels()) {
+				for (Entity entity : level.getAllEntities()) {
+					if (entity instanceof IronGolem golem && isLegacyReflectiveTauntGolem(golem)) {
+						golem.discard();
+					} else {
+						trackPersistentTemporaryEntity(entity);
+					}
+				}
+			}
+			persistentTemporaryEntityRecoveryPending = false;
+		}
+
+		for (Entity entity : PERSISTENT_TEMPORARY_ENTITIES_BY_ID.values()) {
+			if (entity == null || entity.isRemoved() || !isPersistentTemporaryEntity(entity)
+				|| !(entity.level() instanceof ServerLevel level)) {
+				if (entity != null) {
+					PERSISTENT_TEMPORARY_ENTITIES_BY_ID.remove(entity.getUUID(), entity);
+				}
+				continue;
+			}
+
+			long levelTime = level.getGameTime();
+			if (entity instanceof Wolf wolf) {
+				Long expiresAtGameTime = taggedLong(wolf, WOLFPACK_EXPIRES_TAG_PREFIX);
+				UUID ownerUuid = taggedUuid(wolf, WOLFPACK_OWNER_TAG_PREFIX);
+				if (!enabled || expiresAtGameTime == null || ownerUuid == null || levelTime >= expiresAtGameTime) {
+					ACTIVE_WOLFPACK_WOLVES.remove(wolf.getUUID());
+					PERSISTENT_TEMPORARY_ENTITIES_BY_ID.remove(wolf.getUUID(), wolf);
+					wolf.discard();
+					continue;
+				}
+
+				if (server.getPlayerList().getPlayer(ownerUuid) != null && !ACTIVE_WOLFPACK_WOLVES.containsKey(wolf.getUUID())) {
+					long remainingTicks = Math.max(1L, expiresAtGameTime - levelTime);
+					ACTIVE_WOLFPACK_WOLVES.put(
+						wolf.getUUID(),
+						new WolfpackWolfState(ownerUuid, level.dimension().toString(), safeAdd(now, remainingTicks))
+					);
+				}
+				continue;
+			}
+
+			IronGolem golem = (IronGolem) entity;
+			Long expiresAtGameTime = taggedLong(golem, REFLECTIVE_TAUNT_EXPIRES_TAG_PREFIX);
+			Long activeUntilGameTime = taggedLong(golem, REFLECTIVE_TAUNT_ACTIVE_UNTIL_TAG_PREFIX);
+			UUID ownerUuid = taggedUuid(golem, REFLECTIVE_TAUNT_OWNER_TAG_PREFIX);
+			Double radius = taggedDouble(golem, REFLECTIVE_TAUNT_RADIUS_TAG_PREFIX);
+			Double reflection = taggedDouble(golem, REFLECTIVE_TAUNT_REFLECTION_TAG_PREFIX);
+			if (!enabled || expiresAtGameTime == null || activeUntilGameTime == null || ownerUuid == null
+				|| radius == null || reflection == null || levelTime >= expiresAtGameTime) {
+				if (ownerUuid != null) {
+					ACTIVE_REFLECTIVE_TAUNTS.remove(ownerUuid);
+				}
+				PERSISTENT_TEMPORARY_ENTITIES_BY_ID.remove(golem.getUUID(), golem);
+				golem.discard();
+				continue;
+			}
+
+			if (server.getPlayerList().getPlayer(ownerUuid) != null && !ACTIVE_REFLECTIVE_TAUNTS.containsKey(ownerUuid)) {
+				long remainingActiveTicks = Math.max(0L, activeUntilGameTime - levelTime);
+				long remainingTicks = Math.max(1L, expiresAtGameTime - levelTime);
+				ReflectiveTauntState restoredState = new ReflectiveTauntState(
+					ownerUuid,
+					golem.getUUID(),
+					level.dimension().toString(),
+					now,
+					safeAdd(now, remainingActiveTicks),
+					Math.max(0.0D, radius),
+					Math.max(0.0D, Math.min(1.0D, reflection))
+				);
+				if (levelTime >= activeUntilGameTime) {
+					restoredState.damageWaveStarted = true;
+					restoredState.waveStartedTick = now;
+					restoredState.waveUntilTick = safeAdd(now, remainingTicks);
+				}
+				ACTIVE_REFLECTIVE_TAUNTS.put(ownerUuid, restoredState);
+			}
+		}
 	}
 
 	static void tickWebControls(MinecraftServer server) {
@@ -302,6 +595,74 @@ public final class PetAbilitiesManager {
 			}
 			ACTIVE_SPRINT_BOOSTS.remove(playerId, state);
 		}
+	}
+
+	static void tickRampages(MinecraftServer server) {
+		if (server == null || ACTIVE_RAMPAGES.isEmpty()) {
+			return;
+		}
+
+		long now = TimeAPIManager.getGameplayTicks();
+		for (Map.Entry<UUID, RampageState> entry : ACTIVE_RAMPAGES.entrySet()) {
+			RampageState state = entry.getValue();
+			ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
+			if (state == null || player == null || !player.isAlive() || now >= state.untilTick()) {
+				ACTIVE_RAMPAGES.remove(entry.getKey(), state);
+			}
+		}
+	}
+
+	static void tickWolfpackWolves(MinecraftServer server) {
+		if (server == null || ACTIVE_WOLFPACK_WOLVES.isEmpty()) {
+			return;
+		}
+
+		long now = TimeAPIManager.getGameplayTicks();
+		for (Map.Entry<UUID, WolfpackWolfState> entry : ACTIVE_WOLFPACK_WOLVES.entrySet()) {
+			UUID wolfId = entry.getKey();
+			WolfpackWolfState state = entry.getValue();
+			ServerPlayer owner = state == null ? null : server.getPlayerList().getPlayer(state.ownerUuid());
+			Entity entity = findEntity(server, wolfId);
+			if (!(entity instanceof Wolf wolf) || !wolf.isAlive() || owner == null || !owner.isAlive()
+				|| state == null || now >= state.expiresAtTick() || !wolf.level().dimension().toString().equals(state.dimensionId())) {
+				if (entity != null && entity.isAlive()) {
+					entity.discard();
+				}
+				ACTIVE_WOLFPACK_WOLVES.remove(wolfId, state);
+				continue;
+			}
+
+			LivingEntity target = wolf.getTarget();
+			if (!isValidWolfpackTarget(wolf, target) || wolf.distanceToSqr(target) > WOLFPACK_RADIUS * WOLFPACK_RADIUS) {
+				target = findWolfpackTarget(wolf, owner);
+				wolf.setTarget(target);
+			}
+		}
+	}
+
+	private static LivingEntity findWolfpackTarget(Wolf wolf, ServerPlayer owner) {
+		if (wolf == null || !(wolf.level() instanceof ServerLevel level)) {
+			return null;
+		}
+		AABB area = wolf.getBoundingBox().inflate(WOLFPACK_RADIUS);
+		LivingEntity closest = null;
+		double closestDistance = Double.MAX_VALUE;
+		for (LivingEntity candidate : level.getEntitiesOfClass(LivingEntity.class, area, entity ->
+			entity != null && entity != owner && entity.isAlive() && isHostileMob(entity)
+				&& !(entity instanceof Creeper) && !isManagedPet(entity)
+		)) {
+			double distance = wolf.distanceToSqr(candidate);
+			if (distance < closestDistance) {
+				closest = candidate;
+				closestDistance = distance;
+			}
+		}
+		return closest;
+	}
+
+	private static boolean isValidWolfpackTarget(Wolf wolf, LivingEntity target) {
+		return wolf != null && target != null && target.isAlive() && target.level() == wolf.level()
+			&& isHostileMob(target) && !(target instanceof Creeper) && !isManagedPet(target);
 	}
 
 	static void tickGoatCharges(MinecraftServer server) {
@@ -436,6 +797,27 @@ public final class PetAbilitiesManager {
 		if (entity == null || amount <= 0.0F) return amount;
 		float vulnerabilityPercent = getDamageVulnerabilityPercent(entity);
 		return amount * (1.0F + vulnerabilityPercent / 100.0F);
+	}
+
+	/** Applies an active Wolf Rampage boost to damage from a player or managed pet. */
+	public static float applyOutgoingDamage(net.minecraft.world.damagesource.DamageSource source, float amount) {
+		if (source == null || amount <= 0.0F || isWolfpackSummonSource(source)) {
+			return amount;
+		}
+		ServerPlayer owner = resolveEligibleDamageOwner(source);
+		if (owner == null) {
+			return amount;
+		}
+		RampageState state = ACTIVE_RAMPAGES.get(owner.getUUID());
+		long now = TimeAPIManager.getGameplayTicks();
+		if (state == null || now >= state.untilTick()) {
+			if (state != null) {
+				ACTIVE_RAMPAGES.remove(owner.getUUID(), state);
+			}
+			return amount;
+		}
+		float boostedAmount = (float) (amount * (1.0D + Math.max(0.0D, state.damageBoost())));
+		return boostedAmount;
 	}
 
 	/** Returns the active additive vulnerability supplied by pet abilities. */
@@ -653,6 +1035,16 @@ public final class PetAbilitiesManager {
 
 	public static void initialize() {
 		PetAbilitiesAPIManager.registerProvider(new MadokuPetAbilitiesProvider());
+		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
+			if (entity instanceof IronGolem golem && isLegacyReflectiveTauntGolem(golem)) {
+				golem.discard();
+				return;
+			}
+			trackPersistentTemporaryEntity(entity);
+		});
+		ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) ->
+			PERSISTENT_TEMPORARY_ENTITIES_BY_ID.remove(entity.getUUID(), entity)
+		);
 		PayloadTypeRegistry.clientboundPlay().register(PetPayloadAPIManager.PetAbilityHudPayload.TYPE, PetPayloadAPIManager.PetAbilityHudPayload.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(PetPayloadAPIManager.ReflectiveTauntVisualPayload.TYPE, PetPayloadAPIManager.ReflectiveTauntVisualPayload.CODEC);
 		PayloadTypeRegistry.serverboundPlay().register(PetPayloadAPIManager.LeftClickAirPayload.TYPE, PetPayloadAPIManager.LeftClickAirPayload.CODEC);
@@ -692,7 +1084,10 @@ public final class PetAbilitiesManager {
 				MadokuPetManager.PET_ABILITY_GOAT_CHARGE,
 				MadokuPetManager.PET_ABILITY_REFLECTIVE_TAUNT,
 				MadokuPetManager.PET_ABILITY_MOVEMENT_SPEED_BONUS,
-				MadokuPetManager.PET_ABILITY_SPRINT_BOOST
+				MadokuPetManager.PET_ABILITY_SPRINT_BOOST,
+				MadokuPetManager.PET_ABILITY_LIFESTEAL,
+				MadokuPetManager.PET_ABILITY_WOLFPACK,
+				MadokuPetManager.PET_ABILITY_RAMPAGE
 				};
 				for (String abilityType : abilityTypes) {
 					defaults.put(PetConfigManager.abilityConfigId(abilityType), PetConfigManager.PetRule.defaultsForAbility(abilityType));
@@ -958,6 +1353,9 @@ public final class PetAbilitiesManager {
 			radius,
 			reflection
 		);
+		long activeUntilGameTime = safeAdd(level.getGameTime(), durationTicks);
+		long expiresAtGameTime = safeAdd(activeUntilGameTime, REFLECTIVE_TAUNT_DAMAGE_WAVE_TICKS);
+		tagReflectiveTauntGolem(center, player.getUUID(), activeUntilGameTime, expiresAtGameTime, radius, reflection);
 		ACTIVE_REFLECTIVE_TAUNTS.put(player.getUUID(), state);
 		setSharedAbilityCooldown(player.getUUID(), PET_ABILITY_REFLECTIVE_TAUNT, abilitySlots, abilityCount, now + resolvedAbility.cooldownTicks);
 		level.playSound(null, center.getX(), center.getY(), center.getZ(), SoundEvents.BEACON_ACTIVATE, SoundSource.NEUTRAL, 2.0F, 1.0F);
@@ -1028,7 +1426,7 @@ public final class PetAbilitiesManager {
 	}
 
 	static void stopReflectiveTauntForOwner(MinecraftServer server, UUID ownerId) {
-		if (ownerId == null) {
+		if (ownerId == null || isServerStopping(server)) {
 			return;
 		}
 		ReflectiveTauntState state = ACTIVE_REFLECTIVE_TAUNTS.remove(ownerId);
@@ -1182,24 +1580,174 @@ public final class PetAbilitiesManager {
 		if (!PetConfigManager.settings().enabled || damageTaken <= 0.0F) {
 			return;
 		}
+		ServerPlayer damageOwner = resolveEligibleDamageOwner(source);
+		if (damageOwner != null) {
+			applyLifesteal(damageOwner, damageTaken);
+		}
 		if (entity instanceof ServerPlayer playerVictim) {
 			triggerHealthRegeneration(playerVictim);
 		}
 		if (blocked) {
 			return;
 		}
-		if (entity != null && source != null && source.getEntity() instanceof ServerPlayer playerAttacker) {
+		if (entity != null && source != null && source.getEntity() instanceof ServerPlayer playerAttacker
+			&& !isPetAbilityDamage(source)) {
 			triggerReactiveAbilities(playerAttacker, entity);
+		}
+		if (damageOwner != null && !isPetAbilityDamage(source) && !isManagedPetDamageSource(source)) {
+			triggerRampage(damageOwner);
 		}
 		if (entity instanceof ServerPlayer playerVictim) {
 			LivingEntity attackerTarget = resolveDamageSourceLivingEntity(source);
 			if (attackerTarget != null) {
 				if (isHostileMob(attackerTarget)) {
 					triggerReflectiveTaunt(playerVictim, attackerTarget);
+					triggerWolfpack(playerVictim);
 				}
 				triggerReactiveAbilities(playerVictim, attackerTarget);
 			}
 		}
+	}
+
+	private static void applyLifesteal(ServerPlayer owner, float finalDamage) {
+		if (owner == null || !owner.isAlive() || finalDamage <= 0.0F) {
+			return;
+		}
+		PetInventory inventory = petInventory(owner);
+		if (inventory == null) {
+			return;
+		}
+
+		double lifesteal = 0.0D;
+		boolean primary = true;
+		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
+			PetRule rule = PetConfigManager.resolvePetRule(inventory.getItem(slot));
+			PetAbilityRule ability = rule == null ? null : rule.ability(PET_ABILITY_LIFESTEAL);
+			if (ability == null || !rule.enabled || ability.healthRegenerationAmount <= 0.0D) {
+				continue;
+			}
+			lifesteal += ability.healthRegenerationAmount * (primary ? 1.0D : 0.5D);
+			primary = false;
+		}
+		if (lifesteal > 0.0D) {
+			owner.heal((float) (finalDamage * lifesteal));
+		}
+	}
+
+	private static void triggerRampage(ServerPlayer player) {
+		if (player == null) {
+			return;
+		}
+		if (!player.isAlive()) {
+			return;
+		}
+		if (ACTIVE_RAMPAGES.containsKey(player.getUUID())) {
+			return;
+		}
+		PetInventory inventory = petInventory(player);
+		if (inventory == null) {
+			return;
+		}
+
+		long now = TimeAPIManager.getGameplayTicks();
+		synchronizeAllAbilityCooldowns(player, inventory, now);
+		int[] abilitySlots = new int[SLOT_COUNT];
+		int abilityCount = collectSlotsWithAbility(inventory, PET_ABILITY_RAMPAGE, abilitySlots, null);
+		long sharedCooldownTick = synchronizeSharedAbilityCooldown(player.getUUID(), PET_ABILITY_RAMPAGE, abilitySlots, abilityCount, now);
+		if (abilityCount <= 0 || now < sharedCooldownTick) {
+			return;
+		}
+		PetAbilityRule resolvedAbility = resolveDuplicateAbilityRule(inventory, abilitySlots, abilityCount, PET_ABILITY_RAMPAGE);
+		if (resolvedAbility == null) {
+			return;
+		}
+
+		int duplicateCount = Math.max(0, abilityCount - 1);
+		double damageBoost = Math.max(0.0D, resolvedAbility.playerDamageBonusAmount + duplicateCount * RAMPAGE_DUPLICATE_DAMAGE_BOOST);
+		long durationTicks = Math.max(0L, resolvedAbility.effectDurationTicks);
+		if (damageBoost <= 0.0D || durationTicks <= 0L) {
+			return;
+		}
+
+		ACTIVE_RAMPAGES.put(player.getUUID(), new RampageState(safeAdd(now, durationTicks), damageBoost));
+		setSharedAbilityCooldown(player.getUUID(), PET_ABILITY_RAMPAGE, abilitySlots, abilityCount,
+			safeAdd(now, Math.max(0L, resolvedAbility.cooldownTicks)));
+	}
+
+	private static void triggerWolfpack(ServerPlayer player) {
+		if (player == null) {
+			return;
+		}
+		if (!player.isAlive() || !(player.level() instanceof ServerLevel level)) {
+			return;
+		}
+		PetInventory inventory = petInventory(player);
+		if (inventory == null) {
+			return;
+		}
+
+		long now = TimeAPIManager.getGameplayTicks();
+		synchronizeAllAbilityCooldowns(player, inventory, now);
+		int[] abilitySlots = new int[SLOT_COUNT];
+		int abilityCount = collectSlotsWithAbility(inventory, PET_ABILITY_WOLFPACK, abilitySlots, null);
+		long sharedCooldownTick = synchronizeSharedAbilityCooldown(player.getUUID(), PET_ABILITY_WOLFPACK, abilitySlots, abilityCount, now);
+		if (abilityCount <= 0 || now < sharedCooldownTick) {
+			return;
+		}
+		PetAbilityRule resolvedAbility = resolveDuplicateAbilityRule(inventory, abilitySlots, abilityCount, PET_ABILITY_WOLFPACK);
+		if (resolvedAbility == null) {
+			return;
+		}
+
+		int duplicateCount = Math.max(0, abilityCount - 1);
+		int wolves = resolveProjectileCount(player, resolvedAbility.projectileCount + duplicateCount * WOLFPACK_DUPLICATE_WOLVES);
+		long durationTicks = Math.max(0L, resolvedAbility.effectDurationTicks + duplicateCount * WOLFPACK_DUPLICATE_DURATION_TICKS);
+		if (wolves <= 0 || durationTicks <= 0L) {
+			return;
+		}
+
+		int spawned = 0;
+		for (int index = 0; index < wolves; index++) {
+			Wolf wolf = spawnWolfpackWolf(level, player, now, durationTicks, index, wolves);
+			if (wolf != null) {
+				spawned++;
+			}
+		}
+		if (spawned > 0) {
+			setSharedAbilityCooldown(player.getUUID(), PET_ABILITY_WOLFPACK, abilitySlots, abilityCount,
+				safeAdd(now, Math.max(0L, resolvedAbility.cooldownTicks)));
+		}
+	}
+
+	private static Wolf spawnWolfpackWolf(ServerLevel level, ServerPlayer owner, long now, long durationTicks, int index, int count) {
+		if (level == null || owner == null) {
+			return null;
+		}
+		Entity created = BuiltInRegistries.ENTITY_TYPE
+			.getValue(Identifier.fromNamespaceAndPath("minecraft", "wolf"))
+			.create(level, EntitySpawnReason.EVENT);
+		if (!(created instanceof Wolf wolf)) {
+			return null;
+		}
+
+		double angle = ((Math.PI * 2.0D) * index) / Math.max(1, count);
+		double radius = 1.5D + owner.getRandom().nextDouble() * 1.5D;
+		wolf.snapTo(owner.getX() + Math.cos(angle) * radius, owner.getY(), owner.getZ() + Math.sin(angle) * radius,
+			owner.getYRot(), 0.0F);
+		wolf.tame(owner);
+		wolf.setOrderedToSit(false);
+		wolf.setPersistenceRequired();
+		wolf.addTag(WOLFPACK_SUMMON_TAG);
+		wolf.addTag(WOLFPACK_OWNER_TAG_PREFIX + owner.getUUID());
+		wolf.addTag(WOLFPACK_EXPIRES_TAG_PREFIX + safeAdd(level.getGameTime(), durationTicks));
+		wolf.setTarget(findWolfpackTarget(wolf, owner));
+		if (!level.addFreshEntity(wolf)) {
+			return null;
+		}
+		ACTIVE_WOLFPACK_WOLVES.put(wolf.getUUID(), new WolfpackWolfState(
+			owner.getUUID(), level.dimension().toString(), safeAdd(now, durationTicks)
+		));
+		return wolf;
 	}
 
 	private static void triggerHealthRegeneration(ServerPlayer player) {
@@ -1318,6 +1866,7 @@ public final class PetAbilitiesManager {
 		golem.noPhysics = false;
 		golem.setPermanentlyInvulnerable(false);
 		golem.setPersistenceRequired();
+		golem.addTag(REFLECTIVE_TAUNT_SUMMON_TAG);
 		golem.setPlayerCreated(true);
 		if (!level.addFreshEntity(golem)) {
 			return null;
@@ -1446,7 +1995,11 @@ public final class PetAbilitiesManager {
 	}
 
 	private static boolean isHostileMob(LivingEntity entity) {
-		return entity instanceof Mob && entity instanceof Enemy;
+		if (!(entity instanceof Mob)) {
+			return false;
+		}
+		return entity instanceof Enemy
+			|| entity instanceof NeutralMob neutralMob && neutralMob.isAngry();
 	}
 
 	private static boolean isReflectiveTauntMob(LivingEntity entity) {
@@ -1468,7 +2021,146 @@ public final class PetAbilitiesManager {
 		if (source.getDirectEntity() instanceof LivingEntity directSource) {
 			return directSource;
 		}
+		Entity sourceEntity = source.getEntity();
+		if (sourceEntity instanceof Projectile projectile && projectile.getOwner() instanceof LivingEntity owner) {
+			return owner;
+		}
+		Entity directEntity = source.getDirectEntity();
+		if (directEntity instanceof Projectile projectile && projectile.getOwner() instanceof LivingEntity owner) {
+			return owner;
+		}
 		return null;
+	}
+
+	private static ServerPlayer resolveEligibleDamageOwner(net.minecraft.world.damagesource.DamageSource source) {
+		if (source == null || isWolfpackSummonSource(source)) {
+			return null;
+		}
+		ServerPlayer owner = resolveEligibleDamageOwner(source.getEntity());
+		if (owner != null) {
+			return owner;
+		}
+		return resolveEligibleDamageOwner(source.getDirectEntity());
+	}
+
+	private static ServerPlayer resolveEligibleDamageOwner(Entity entity) {
+		if (entity instanceof ServerPlayer player) {
+			return player;
+		}
+		if (entity instanceof MadokuPetEntity pet && pet.ownerUuid() != null && pet.level().getServer() != null) {
+			return pet.level().getServer().getPlayerList().getPlayer(pet.ownerUuid());
+		}
+		if (entity instanceof Projectile projectile) {
+			Entity projectileOwner = projectile.getOwner();
+			return projectileOwner == entity ? null : resolveEligibleDamageOwner(projectileOwner);
+		}
+		return null;
+	}
+
+	private static boolean isPetAbilityDamage(net.minecraft.world.damagesource.DamageSource source) {
+		return source != null && source.is(PET_ABILITY_DAMAGE_TYPE);
+	}
+
+	private static boolean isManagedPetDamageSource(net.minecraft.world.damagesource.DamageSource source) {
+		if (source == null) {
+			return false;
+		}
+		return source.getEntity() instanceof MadokuPetEntity
+			|| source.getDirectEntity() instanceof MadokuPetEntity
+			|| source.getEntity() instanceof Projectile projectile && projectile.getOwner() instanceof MadokuPetEntity
+			|| source.getDirectEntity() instanceof Projectile projectile && projectile.getOwner() instanceof MadokuPetEntity;
+	}
+
+	private static boolean isWolfpackSummonSource(net.minecraft.world.damagesource.DamageSource source) {
+		if (source == null) {
+			return false;
+		}
+		return isWolfpackSummon(source.getEntity()) || isWolfpackSummon(source.getDirectEntity())
+			|| source.getEntity() instanceof Projectile projectile && isWolfpackSummon(projectile.getOwner())
+			|| source.getDirectEntity() instanceof Projectile projectile && isWolfpackSummon(projectile.getOwner());
+	}
+
+	private static boolean isWolfpackSummon(Entity entity) {
+		return entity instanceof Wolf wolf && wolf.entityTags().contains(WOLFPACK_SUMMON_TAG);
+	}
+
+	private static boolean isPersistentTemporaryEntity(Entity entity) {
+		return isWolfpackSummon(entity)
+			|| entity instanceof IronGolem golem && golem.entityTags().contains(REFLECTIVE_TAUNT_SUMMON_TAG);
+	}
+
+	private static void trackPersistentTemporaryEntity(Entity entity) {
+		if (entity != null && isPersistentTemporaryEntity(entity)) {
+			PERSISTENT_TEMPORARY_ENTITIES_BY_ID.put(entity.getUUID(), entity);
+		}
+	}
+
+	private static void tagReflectiveTauntGolem(
+		IronGolem golem,
+		UUID ownerUuid,
+		long activeUntilGameTime,
+		long expiresAtGameTime,
+		double radius,
+		double reflection
+	) {
+		if (golem == null || ownerUuid == null) {
+			return;
+		}
+		golem.addTag(REFLECTIVE_TAUNT_SUMMON_TAG);
+		golem.addTag(REFLECTIVE_TAUNT_OWNER_TAG_PREFIX + ownerUuid);
+		golem.addTag(REFLECTIVE_TAUNT_ACTIVE_UNTIL_TAG_PREFIX + activeUntilGameTime);
+		golem.addTag(REFLECTIVE_TAUNT_EXPIRES_TAG_PREFIX + expiresAtGameTime);
+		golem.addTag(REFLECTIVE_TAUNT_RADIUS_TAG_PREFIX + Double.toString(radius));
+		golem.addTag(REFLECTIVE_TAUNT_REFLECTION_TAG_PREFIX + Double.toString(reflection));
+		trackPersistentTemporaryEntity(golem);
+	}
+
+	private static boolean isLegacyReflectiveTauntGolem(IronGolem golem) {
+		return golem != null
+			&& !golem.entityTags().contains(REFLECTIVE_TAUNT_SUMMON_TAG)
+			&& golem.isPlayerCreated()
+			&& golem.isNoAi()
+			&& golem.isNoGravity();
+	}
+
+	private static String taggedValue(Entity entity, String prefix) {
+		if (entity == null || prefix == null) {
+			return null;
+		}
+		for (String tag : entity.entityTags()) {
+			if (tag != null && tag.startsWith(prefix)) {
+				return tag.substring(prefix.length()).trim();
+			}
+		}
+		return null;
+	}
+
+	private static UUID taggedUuid(Entity entity, String prefix) {
+		return parseUuid(taggedValue(entity, prefix));
+	}
+
+	private static Long taggedLong(Entity entity, String prefix) {
+		String value = taggedValue(entity, prefix);
+		if (value == null || value.isBlank()) {
+			return null;
+		}
+		try {
+			return Long.parseLong(value);
+		} catch (NumberFormatException exception) {
+			return null;
+		}
+	}
+
+	private static Double taggedDouble(Entity entity, String prefix) {
+		String value = taggedValue(entity, prefix);
+		if (value == null || value.isBlank()) {
+			return null;
+		}
+		try {
+			return Double.parseDouble(value);
+		} catch (NumberFormatException exception) {
+			return null;
+		}
 	}
 
 	public static boolean hasAbility(ItemStack stack) {
@@ -1523,6 +2215,12 @@ public final class PetAbilitiesManager {
 	public static void applyPlayerPassiveAbilityBonuses(ServerPlayer player) {
 		if (player == null) return;
 		PassiveBonuses bonuses = resolvePassiveBonuses(player);
+		PASSIVE_BONUSES_BY_PLAYER.put(player.getUUID(), bonuses);
+		applyPassiveAbilityBonuses(player, bonuses);
+	}
+
+	private static void applyPassiveAbilityBonuses(ServerPlayer player, PassiveBonuses bonuses) {
+		if (player == null || bonuses == null) return;
 
 		AttributeInstance maxHealth = player.getAttribute(Attributes.MAX_HEALTH);
 		if (maxHealth != null) {
@@ -1546,16 +2244,30 @@ public final class PetAbilitiesManager {
 		}
 	}
 
+	static void invalidatePassiveAbilityBonuses(UUID playerId) {
+		if (playerId != null) {
+			PASSIVE_BONUSES_BY_PLAYER.remove(playerId);
+		}
+	}
+
+	static void invalidateAllPassiveAbilityBonuses() {
+		PASSIVE_BONUSES_BY_PLAYER.clear();
+	}
+
 	private static PassiveBonuses resolvePassiveBonuses(ServerPlayer player) {
 		if (player == null || !PetConfigManager.isEnabled()) return PassiveBonuses.EMPTY;
 		PetInventory inventory = petInventory(player);
 		if (inventory == null) return PassiveBonuses.EMPTY;
 		double damage = 0.0D;
 		double maxHealth = 0.0D;
+		boolean hasPrimaryDamageAbility = false;
 		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
 			PetRule rule = PetConfigManager.resolvePetRule(inventory.getItem(slot));
 			if (rule == null) continue;
-			if (rule.hasAbility(PET_ABILITY_PLAYER_DAMAGE_BONUS)) damage += rule.playerDamageBonus();
+			if (rule.hasAbility(PET_ABILITY_PLAYER_DAMAGE_BONUS)) {
+				damage += rule.playerDamageBonus() * (hasPrimaryDamageAbility ? 0.5D : 1.0D);
+				hasPrimaryDamageAbility = true;
+			}
 			if (rule.hasAbility(PET_ABILITY_MAX_HEALTH_BONUS)) maxHealth += rule.maxHealthBonus();
 		}
 		return new PassiveBonuses(
@@ -1573,6 +2285,7 @@ public final class PetAbilitiesManager {
 		PetInventory inventory = petInventory(player);
 		if (inventory == null) return 0.0D;
 		double total = 0.0D;
+		boolean hasPrimaryDamageAbility = false;
 		int fallAbilityCount = 0;
 		double strongestFallLevelBonus = 0.0D;
 		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
@@ -1592,13 +2305,19 @@ public final class PetAbilitiesManager {
 				}
 				continue;
 			}
-			total += switch (abilityType) {
+			double abilityValue = switch (abilityType) {
 				case PET_ABILITY_PLAYER_DAMAGE_BONUS -> rule.playerDamageBonus();
 				case PET_ABILITY_FALL_DAMAGE_REDUCTION -> rule.fallDamageReduction();
 				case PET_ABILITY_MAX_HEALTH_BONUS -> rule.maxHealthBonus();
 				case PET_ABILITY_DAMAGE_REDUCTION -> rule.damageReduction();
 				default -> 0.0D;
 			};
+			if (PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType)) {
+				total += abilityValue * (hasPrimaryDamageAbility ? 0.5D : 1.0D);
+				hasPrimaryDamageAbility = true;
+			} else {
+				total += abilityValue;
+			}
 		}
 		if (PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(abilityType) && fallAbilityCount > 0) {
 			return FALL_DAMAGE_REDUCTION_BASE
@@ -4083,7 +4802,9 @@ public final class PetAbilitiesManager {
 			}
 
 			for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-				PetAbilitiesManager.applyPlayerPassiveAbilityBonuses(player);
+				if (!PASSIVE_BONUSES_BY_PLAYER.containsKey(player.getUUID())) {
+					PetAbilitiesManager.applyPlayerPassiveAbilityBonuses(player);
+				}
 			}
 		}
 
@@ -4287,6 +5008,30 @@ public final class PetAbilitiesManager {
 		}
 	}
 
+	static void stopWolfpackWolvesForOwner(MinecraftServer server, UUID ownerId) {
+		if (server == null || ownerId == null || isServerStopping(server)) {
+			return;
+		}
+		for (Map.Entry<UUID, WolfpackWolfState> entry : ACTIVE_WOLFPACK_WOLVES.entrySet()) {
+			WolfpackWolfState state = entry.getValue();
+			if (state != null && ownerId.equals(state.ownerUuid())) {
+				Entity wolf = findEntity(server, entry.getKey());
+				if (wolf != null && wolf.isAlive()) {
+					wolf.discard();
+				}
+				ACTIVE_WOLFPACK_WOLVES.remove(entry.getKey(), state);
+			}
+		}
+	}
+
+	static void clearPlayerCombatState(MinecraftServer server, UUID playerId) {
+		if (server == null || playerId == null) {
+			return;
+		}
+		ACTIVE_RAMPAGES.remove(playerId);
+		stopWolfpackWolvesForOwner(server, playerId);
+	}
+
 	private record WebProjectileState(
 		String dimensionId,
 		UUID ownerUuid,
@@ -4322,6 +5067,10 @@ public final class PetAbilitiesManager {
 		long cooldownTicks,
 		double speedBonus
 	) {}
+
+	private record RampageState(long untilTick, double damageBoost) {}
+
+	private record WolfpackWolfState(UUID ownerUuid, String dimensionId, long expiresAtTick) {}
 
 	private record ExplosiveProjectileState(
 		String dimensionId,
@@ -4429,8 +5178,8 @@ public final class PetAbilitiesManager {
 		private final UUID ownerUuid;
 		private final UUID centerEntityUuid;
 		private final String dimensionId;
-		private final long startedTick;
-		private final long untilTick;
+		private long startedTick;
+		private long untilTick;
 		private final double radius;
 		private final double reflectionPercentage;
 		private long waveStartedTick;

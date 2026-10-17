@@ -35,6 +35,7 @@ public interface PetAbilitiesProvider {
 	default float applyDamageBlock(LivingEntity entity, DamageSource source, float amount) { return amount; }
 	default void applyPlayerMaxHealthAbilityBonus(ServerPlayer player) { }
 	default void applyPlayerDamageAbilityBonus(ServerPlayer player) { }
+	default float applyOutgoingDamage(DamageSource source, float amount) { return amount; }
 	default boolean hasAbility(Entity entity) { return false; }
 	default void recordManagedPetDamage(Entity entity, DamageSource source, float amount) { }
 	default boolean isReflectiveTauntTarget(Entity entity) { return false; }
