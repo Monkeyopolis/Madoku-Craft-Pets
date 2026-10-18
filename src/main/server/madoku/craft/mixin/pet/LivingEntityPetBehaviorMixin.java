@@ -53,7 +53,9 @@ public abstract class LivingEntityPetBehaviorMixin {
 		CallbackInfoReturnable<Boolean> cir
 	) {
 		Entity entity = (Entity) (Object) this;
-		if (PetComponentsAPIManager.isManaged(entity) || PetAbilitiesAPIManager.isReflectiveTauntTarget(entity)) {
+		if (PetComponentsAPIManager.isManaged(entity)
+			|| PetAbilitiesAPIManager.isWolfpackFriendlyFire(entity, source)
+			|| PetAbilitiesAPIManager.isReflectiveTauntTarget(entity)) {
 			PetAbilitiesAPIManager.recordManagedPetDamage(entity, source, amount);
 			cir.setReturnValue(false);
 		}
@@ -63,6 +65,7 @@ public abstract class LivingEntityPetBehaviorMixin {
 	private void madokuCraft$scaleWebSlowMovement(CallbackInfoReturnable<Float> cir) {
 		LivingEntity entity = (LivingEntity) (Object) this;
 		float speed = PetAbilitiesAPIManager.scaleWebMovementSpeed(entity, cir.getReturnValue());
+		speed = PetAbilitiesAPIManager.scaleTauntedMovementSpeed(entity, speed);
 		cir.setReturnValue(PetAbilitiesAPIManager.scalePlayerMovementSpeed(entity, speed));
 	}
 

@@ -26,6 +26,7 @@ public final class PetAbilitiesAPIManager {
 	public static float getDamageVulnerabilityPercent(LivingEntity entity) { return provider.getDamageVulnerabilityPercent(entity); }
 	public static boolean isWebStunned(Entity entity) { return provider.isWebStunned(entity); }
 	public static float scaleWebMovementSpeed(LivingEntity entity, float speed) { return provider.scaleWebMovementSpeed(entity, speed); }
+	public static float scaleTauntedMovementSpeed(LivingEntity entity, float speed) { return provider.scaleTauntedMovementSpeed(entity, speed); }
 	public static float scalePlayerMovementSpeed(LivingEntity entity, float speed) { return provider.scalePlayerMovementSpeed(entity, speed); }
 	public static Vec3 scaleWebMovement(LivingEntity entity, Vec3 movement) { return provider.scaleWebMovement(entity, movement); }
 	public static void handlePlayerLeftClick(ServerPlayer player) { provider.handlePlayerLeftClick(player); }
@@ -46,6 +47,7 @@ public final class PetAbilitiesAPIManager {
 	public static float applyOutgoingDamage(DamageSource source, float amount) { return provider.applyOutgoingDamage(source, amount); }
 	public static boolean hasAbility(Entity entity) { return provider.hasAbility(entity); }
 	public static void recordManagedPetDamage(Entity entity, DamageSource source, float amount) { provider.recordManagedPetDamage(entity, source, amount); }
+	public static boolean isWolfpackFriendlyFire(Entity victim, DamageSource source) { return provider.isWolfpackFriendlyFire(victim, source); }
 	public static boolean isReflectiveTauntTarget(Entity entity) { return provider.isReflectiveTauntTarget(entity); }
 	public static LivingEntity reflectiveTauntTargetFor(Mob mob) { return provider.reflectiveTauntTargetFor(mob); }
 	public static boolean handleManagedChickenEggImpact(Entity projectile, HitResult hitResult) { return provider.handleManagedChickenEggImpact(projectile, hitResult); }

@@ -18,6 +18,7 @@ public interface PetAbilitiesProvider {
 	default float getDamageVulnerabilityPercent(LivingEntity entity) { return 0.0F; }
 	default boolean isWebStunned(Entity entity) { return false; }
 	default float scaleWebMovementSpeed(LivingEntity entity, float speed) { return speed; }
+	default float scaleTauntedMovementSpeed(LivingEntity entity, float speed) { return speed; }
 	default float scalePlayerMovementSpeed(LivingEntity entity, float speed) { return speed; }
 	default Vec3 scaleWebMovement(LivingEntity entity, Vec3 movement) { return movement; }
 	default void handlePlayerLeftClick(ServerPlayer player) { }
@@ -38,6 +39,7 @@ public interface PetAbilitiesProvider {
 	default float applyOutgoingDamage(DamageSource source, float amount) { return amount; }
 	default boolean hasAbility(Entity entity) { return false; }
 	default void recordManagedPetDamage(Entity entity, DamageSource source, float amount) { }
+	default boolean isWolfpackFriendlyFire(Entity victim, DamageSource source) { return false; }
 	default boolean isReflectiveTauntTarget(Entity entity) { return false; }
 	default LivingEntity reflectiveTauntTargetFor(Mob mob) { return null; }
 	default boolean handleManagedChickenEggImpact(Entity projectile, HitResult hitResult) { return false; }

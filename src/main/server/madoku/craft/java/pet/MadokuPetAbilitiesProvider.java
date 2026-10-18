@@ -18,6 +18,7 @@ public final class MadokuPetAbilitiesProvider implements PetAbilitiesProvider {
 	@Override public float getDamageVulnerabilityPercent(LivingEntity entity) { return PetAbilitiesManager.getDamageVulnerabilityPercent(entity); }
 	@Override public boolean isWebStunned(Entity entity) { return PetAbilitiesManager.isWebStunned(entity); }
 	@Override public float scaleWebMovementSpeed(LivingEntity entity, float speed) { return PetAbilitiesManager.scaleWebMovementSpeed(entity, speed); }
+	@Override public float scaleTauntedMovementSpeed(LivingEntity entity, float speed) { return PetAbilitiesManager.scaleTauntedMovementSpeed(entity, speed); }
 	@Override public float scalePlayerMovementSpeed(LivingEntity entity, float speed) { return PetAbilitiesManager.scalePlayerMovementSpeed(entity, speed); }
 	@Override public Vec3 scaleWebMovement(LivingEntity entity, Vec3 movement) { return PetAbilitiesManager.scaleWebMovement(entity, movement); }
 	@Override public void handlePlayerLeftClick(ServerPlayer player) { PetAbilitiesManager.handlePlayerLeftClick(player); }
@@ -38,6 +39,7 @@ public final class MadokuPetAbilitiesProvider implements PetAbilitiesProvider {
 	@Override public float applyOutgoingDamage(DamageSource source, float amount) { return PetAbilitiesManager.applyOutgoingDamage(source, amount); }
 	@Override public boolean hasAbility(Entity entity) { return PetAbilitiesManager.hasAbility(entity); }
 	@Override public void recordManagedPetDamage(Entity entity, DamageSource source, float amount) { PetAbilitiesManager.recordManagedPetDamage(entity, source, amount); }
+	@Override public boolean isWolfpackFriendlyFire(Entity victim, DamageSource source) { return PetAbilitiesManager.isWolfpackFriendlyFire(victim, source); }
 	@Override public boolean isReflectiveTauntTarget(Entity entity) { return PetAbilitiesManager.isReflectiveTauntTarget(entity); }
 	@Override public LivingEntity reflectiveTauntTargetFor(Mob mob) { return PetAbilitiesManager.reflectiveTauntTargetFor(mob); }
 	@Override public boolean handleManagedChickenEggImpact(Entity projectile, HitResult hitResult) { return PetAbilitiesManager.handleManagedChickenEggImpact(projectile, hitResult); }

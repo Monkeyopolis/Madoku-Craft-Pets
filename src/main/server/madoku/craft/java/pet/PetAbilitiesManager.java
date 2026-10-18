@@ -150,6 +150,9 @@ public final class PetAbilitiesManager {
 	private static final double REFLECTIVE_TAUNT_DUPLICATE_RADIUS = 1.0D;
 	private static final long REFLECTIVE_TAUNT_DUPLICATE_DURATION_TICKS = 20L;
 	private static final double REFLECTIVE_TAUNT_DUPLICATE_REFLECTION = 0.025D;
+	private static final double REFLECTIVE_TAUNT_BASE_MOVEMENT_SPEED_BONUS = 0.10D;
+	private static final double REFLECTIVE_TAUNT_MOVEMENT_SPEED_BONUS_PER_LEVEL = 0.0125D;
+	private static final double REFLECTIVE_TAUNT_MOVEMENT_SPEED_BONUS_PER_DUPLICATE = 0.025D;
 	private static final double WOLFPACK_RADIUS = 16.0D;
 	private static final double WOLFPACK_DUPLICATE_WOLVES = 1.0D;
 	private static final long WOLFPACK_DUPLICATE_DURATION_TICKS = 50L;
@@ -163,6 +166,7 @@ public final class PetAbilitiesManager {
 	private static final String REFLECTIVE_TAUNT_EXPIRES_TAG_PREFIX = "madoku-craft.reflective-taunt-expires:";
 	private static final String REFLECTIVE_TAUNT_RADIUS_TAG_PREFIX = "madoku-craft.reflective-taunt-radius:";
 	private static final String REFLECTIVE_TAUNT_REFLECTION_TAG_PREFIX = "madoku-craft.reflective-taunt-reflection:";
+	private static final String REFLECTIVE_TAUNT_MOVEMENT_SPEED_PREFIX = "madoku-craft.reflective-taunt-movement-speed:";
 	private static final long PERSISTENT_TEMPORARY_ENTITY_SCAN_INTERVAL_TICKS = 20L;
 	private static final Map<UUID, Map<Integer, Map<String, Long>>> PLAYER_ABILITY_COOLDOWNS = new HashMap<>();
 	private static final List<PendingPetAttack> PENDING_PET_ATTACKS = new ArrayList<>();
@@ -180,10 +184,8 @@ public final class PetAbilitiesManager {
 	private static final Map<UUID, SprintBoostState> ACTIVE_SPRINT_BOOSTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, RampageState> ACTIVE_RAMPAGES = new ConcurrentHashMap<>();
 	private static final Map<UUID, WolfpackWolfState> ACTIVE_WOLFPACK_WOLVES = new ConcurrentHashMap<>();
-	private static final Map<UUID, Boolean> LAST_PLAYER_SPRINTING = new HashMap<>();
 	private static final Map<UUID, SprintBoostState> CLIENT_ACTIVE_SPRINT_BOOSTS = new HashMap<>();
 	private static final Map<UUID, Long> CLIENT_SPRINT_COOLDOWNS = new HashMap<>();
-	private static final Map<UUID, Boolean> CLIENT_LAST_PLAYER_SPRINTING = new HashMap<>();
 	private static final Map<UUID, Float> MOB_SCAN_VULNERABILITY_BY_ENTITY = new ConcurrentHashMap<>();
 	private static final Map<UUID, ExplosiveVulnerabilityState> EXPLOSIVE_VULNERABILITY_BY_ENTITY = new ConcurrentHashMap<>();
 	private static final Map<UUID, Entity> PERSISTENT_TEMPORARY_ENTITIES_BY_ID = new ConcurrentHashMap<>();
@@ -211,10 +213,8 @@ public final class PetAbilitiesManager {
 		ACTIVE_SPRINT_BOOSTS.clear();
 		ACTIVE_RAMPAGES.clear();
 		ACTIVE_WOLFPACK_WOLVES.clear();
-		LAST_PLAYER_SPRINTING.clear();
 		CLIENT_ACTIVE_SPRINT_BOOSTS.clear();
 		CLIENT_SPRINT_COOLDOWNS.clear();
-		CLIENT_LAST_PLAYER_SPRINTING.clear();
 		MOB_SCAN_VULNERABILITY_BY_ENTITY.clear();
 		EXPLOSIVE_VULNERABILITY_BY_ENTITY.clear();
 		PERSISTENT_TEMPORARY_ENTITIES_BY_ID.clear();
@@ -465,6 +465,7 @@ public final class PetAbilitiesManager {
 			UUID ownerUuid = taggedUuid(golem, REFLECTIVE_TAUNT_OWNER_TAG_PREFIX);
 			Double radius = taggedDouble(golem, REFLECTIVE_TAUNT_RADIUS_TAG_PREFIX);
 			Double reflection = taggedDouble(golem, REFLECTIVE_TAUNT_REFLECTION_TAG_PREFIX);
+			Double movementSpeedBonus = taggedDouble(golem, REFLECTIVE_TAUNT_MOVEMENT_SPEED_PREFIX);
 			if (!enabled || expiresAtGameTime == null || activeUntilGameTime == null || ownerUuid == null
 				|| radius == null || reflection == null || levelTime >= expiresAtGameTime) {
 				if (ownerUuid != null) {
@@ -485,7 +486,10 @@ public final class PetAbilitiesManager {
 					now,
 					safeAdd(now, remainingActiveTicks),
 					Math.max(0.0D, radius),
-					Math.max(0.0D, Math.min(1.0D, reflection))
+					Math.max(0.0D, Math.min(1.0D, reflection)),
+					Math.max(0.0D, movementSpeedBonus == null
+						? REFLECTIVE_TAUNT_BASE_MOVEMENT_SPEED_BONUS
+						: movementSpeedBonus)
 				);
 				if (levelTime >= activeUntilGameTime) {
 					restoredState.damageWaveStarted = true;
@@ -649,7 +653,7 @@ public final class PetAbilitiesManager {
 		double closestDistance = Double.MAX_VALUE;
 		for (LivingEntity candidate : level.getEntitiesOfClass(LivingEntity.class, area, entity ->
 			entity != null && entity != owner && entity.isAlive() && isHostileMob(entity)
-				&& !(entity instanceof Creeper) && !isManagedPet(entity)
+				&& !(entity instanceof Creeper) && !isManagedPet(entity) && !isWolfpackSummon(entity)
 		)) {
 			double distance = wolf.distanceToSqr(candidate);
 			if (distance < closestDistance) {
@@ -662,7 +666,7 @@ public final class PetAbilitiesManager {
 
 	private static boolean isValidWolfpackTarget(Wolf wolf, LivingEntity target) {
 		return wolf != null && target != null && target.isAlive() && target.level() == wolf.level()
-			&& isHostileMob(target) && !(target instanceof Creeper) && !isManagedPet(target);
+			&& isHostileMob(target) && !(target instanceof Creeper) && !isManagedPet(target) && !isWolfpackSummon(target);
 	}
 
 	static void tickGoatCharges(MinecraftServer server) {
@@ -990,6 +994,25 @@ public final class PetAbilitiesManager {
 		return movement.scale(multiplier);
 	}
 
+	/** Applies the temporary movement-speed bonus granted to mobs held by reflective taunt. */
+	public static float scaleTauntedMovementSpeed(LivingEntity entity, float speed) {
+		if (!(entity instanceof Mob) || speed <= 0.0F || ACTIVE_REFLECTIVE_TAUNTS.isEmpty()) {
+			return speed;
+		}
+
+		long now = TimeAPIManager.getGameplayTicks();
+		double totalBonus = 0.0D;
+		for (ReflectiveTauntState state : ACTIVE_REFLECTIVE_TAUNTS.values()) {
+			if (state != null
+				&& now < state.untilTick
+				&& entity.level().dimension().toString().equals(state.dimensionId)
+				&& state.tauntedEntityIds.contains(entity.getUUID())) {
+				totalBonus += Math.max(0.0D, state.movementSpeedBonus);
+			}
+		}
+		return totalBonus <= 0.0D ? speed : (float) (speed * (1.0D + totalBonus));
+	}
+
 	/** Applies ocelot's passive movement speed bonus and currently active sprint boost. */
 	public static float scalePlayerMovementSpeed(LivingEntity entity, float speed) {
 		if (!(entity instanceof Player player) || speed <= 0.0F || !PetConfigManager.isEnabled()) {
@@ -1158,9 +1181,7 @@ public final class PetAbilitiesManager {
 
 		UUID playerId = player.getUUID();
 		boolean sprinting = player.isSprinting();
-		boolean wasSprinting = LAST_PLAYER_SPRINTING.getOrDefault(playerId, false);
-		LAST_PLAYER_SPRINTING.put(playerId, sprinting);
-		if (!sprinting || wasSprinting || ACTIVE_SPRINT_BOOSTS.containsKey(playerId)) {
+		if (!sprinting || ACTIVE_SPRINT_BOOSTS.containsKey(playerId)) {
 			return;
 		}
 
@@ -1219,7 +1240,6 @@ public final class PetAbilitiesManager {
 		if (player == null) {
 			CLIENT_ACTIVE_SPRINT_BOOSTS.clear();
 			CLIENT_SPRINT_COOLDOWNS.clear();
-			CLIENT_LAST_PLAYER_SPRINTING.clear();
 			return;
 		}
 
@@ -1232,9 +1252,7 @@ public final class PetAbilitiesManager {
 		}
 
 		boolean sprinting = player.isSprinting();
-		boolean wasSprinting = CLIENT_LAST_PLAYER_SPRINTING.getOrDefault(playerId, false);
-		CLIENT_LAST_PLAYER_SPRINTING.put(playerId, sprinting);
-		if (!player.isAlive() || !PetConfigManager.isEnabled() || !sprinting || wasSprinting
+		if (!player.isAlive() || !PetConfigManager.isEnabled() || !sprinting
 			|| CLIENT_ACTIVE_SPRINT_BOOSTS.containsKey(playerId)
 			|| gameplayTicks < CLIENT_SPRINT_COOLDOWNS.getOrDefault(playerId, 0L)) {
 			return;
@@ -1334,7 +1352,12 @@ public final class PetAbilitiesManager {
 		long durationTicks = Math.max(0L, resolvedAbility.tauntDurationTicks + duplicateCount * REFLECTIVE_TAUNT_DUPLICATE_DURATION_TICKS);
 		double reflection = Math.max(0.0D, Math.min(1.0D,
 			resolvedAbility.reflectedDamageAmount + duplicateCount * REFLECTIVE_TAUNT_DUPLICATE_REFLECTION));
-		if (radius <= 0.0D || durationTicks <= 0L || reflection <= 0.0D) {
+		int abilityLevel = resolveDuplicateAbilityLevel(inventory, abilitySlots, abilityCount, PET_ABILITY_REFLECTIVE_TAUNT);
+		double movementSpeedBonus = Math.max(0.0D,
+			REFLECTIVE_TAUNT_BASE_MOVEMENT_SPEED_BONUS
+				+ Math.max(0, abilityLevel - 1) * REFLECTIVE_TAUNT_MOVEMENT_SPEED_BONUS_PER_LEVEL
+				+ duplicateCount * REFLECTIVE_TAUNT_MOVEMENT_SPEED_BONUS_PER_DUPLICATE);
+		if (radius <= 0.0D || durationTicks <= 0L || reflection <= 0.0D || movementSpeedBonus <= 0.0D) {
 			return;
 		}
 
@@ -1351,11 +1374,12 @@ public final class PetAbilitiesManager {
 			now,
 			safeAdd(now, durationTicks),
 			radius,
-			reflection
+			reflection,
+			movementSpeedBonus
 		);
 		long activeUntilGameTime = safeAdd(level.getGameTime(), durationTicks);
 		long expiresAtGameTime = safeAdd(activeUntilGameTime, REFLECTIVE_TAUNT_DAMAGE_WAVE_TICKS);
-		tagReflectiveTauntGolem(center, player.getUUID(), activeUntilGameTime, expiresAtGameTime, radius, reflection);
+		tagReflectiveTauntGolem(center, player.getUUID(), activeUntilGameTime, expiresAtGameTime, radius, reflection, movementSpeedBonus);
 		ACTIVE_REFLECTIVE_TAUNTS.put(player.getUUID(), state);
 		setSharedAbilityCooldown(player.getUUID(), PET_ABILITY_REFLECTIVE_TAUNT, abilitySlots, abilityCount, now + resolvedAbility.cooldownTicks);
 		level.playSound(null, center.getX(), center.getY(), center.getZ(), SoundEvents.BEACON_ACTIVATE, SoundSource.NEUTRAL, 2.0F, 1.0F);
@@ -1594,7 +1618,7 @@ public final class PetAbilitiesManager {
 			&& !isPetAbilityDamage(source)) {
 			triggerReactiveAbilities(playerAttacker, entity);
 		}
-		if (damageOwner != null && !isPetAbilityDamage(source) && !isManagedPetDamageSource(source)) {
+		if (damageOwner != null && (!isManagedPetDamageSource(source) || isPetAbilityDamage(source))) {
 			triggerRampage(damageOwner);
 		}
 		if (entity instanceof ServerPlayer playerVictim) {
@@ -1735,6 +1759,15 @@ public final class PetAbilitiesManager {
 		wolf.snapTo(owner.getX() + Math.cos(angle) * radius, owner.getY(), owner.getZ() + Math.sin(angle) * radius,
 			owner.getYRot(), 0.0F);
 		wolf.tame(owner);
+		AttributeInstance maxHealth = wolf.getAttribute(Attributes.MAX_HEALTH);
+		if (maxHealth != null) {
+			maxHealth.setBaseValue(Math.max(1.0D, maxHealth.getValue() * 0.5D));
+			wolf.setHealth((float) maxHealth.getValue());
+		}
+		AttributeInstance attackDamage = wolf.getAttribute(Attributes.ATTACK_DAMAGE);
+		if (attackDamage != null) {
+			attackDamage.setBaseValue(Math.max(0.0D, attackDamage.getValue() * 0.5D));
+		}
 		wolf.setOrderedToSit(false);
 		wolf.setPersistenceRequired();
 		wolf.addTag(WOLFPACK_SUMMON_TAG);
@@ -1900,6 +1933,7 @@ public final class PetAbilitiesManager {
 				&& candidate.distanceToSqr(center) <= radiusSquared
 		)) {
 			state.previousTargets.putIfAbsent(mob.getUUID(), mob.getTarget());
+			state.tauntedEntityIds.add(mob.getUUID());
 			if (mob instanceof NeutralMob neutralMob) {
 				state.previousNeutralMobStates.putIfAbsent(
 					mob.getUUID(),
@@ -2080,6 +2114,10 @@ public final class PetAbilitiesManager {
 			|| source.getDirectEntity() instanceof Projectile projectile && isWolfpackSummon(projectile.getOwner());
 	}
 
+	public static boolean isWolfpackFriendlyFire(Entity victim, net.minecraft.world.damagesource.DamageSource source) {
+		return isWolfpackSummon(victim) && isWolfpackSummonSource(source);
+	}
+
 	private static boolean isWolfpackSummon(Entity entity) {
 		return entity instanceof Wolf wolf && wolf.entityTags().contains(WOLFPACK_SUMMON_TAG);
 	}
@@ -2101,7 +2139,8 @@ public final class PetAbilitiesManager {
 		long activeUntilGameTime,
 		long expiresAtGameTime,
 		double radius,
-		double reflection
+		double reflection,
+		double movementSpeedBonus
 	) {
 		if (golem == null || ownerUuid == null) {
 			return;
@@ -2112,6 +2151,7 @@ public final class PetAbilitiesManager {
 		golem.addTag(REFLECTIVE_TAUNT_EXPIRES_TAG_PREFIX + expiresAtGameTime);
 		golem.addTag(REFLECTIVE_TAUNT_RADIUS_TAG_PREFIX + Double.toString(radius));
 		golem.addTag(REFLECTIVE_TAUNT_REFLECTION_TAG_PREFIX + Double.toString(reflection));
+		golem.addTag(REFLECTIVE_TAUNT_MOVEMENT_SPEED_PREFIX + Double.toString(movementSpeedBonus));
 		trackPersistentTemporaryEntity(golem);
 	}
 
@@ -5003,7 +5043,6 @@ public final class PetAbilitiesManager {
 
 	static void clearPlayerSprintState(UUID playerId) {
 		if (playerId != null) {
-			LAST_PLAYER_SPRINTING.remove(playerId);
 			ACTIVE_SPRINT_BOOSTS.remove(playerId);
 		}
 	}
@@ -5182,6 +5221,7 @@ public final class PetAbilitiesManager {
 		private long untilTick;
 		private final double radius;
 		private final double reflectionPercentage;
+		private final double movementSpeedBonus;
 		private long waveStartedTick;
 		private long waveUntilTick;
 		private boolean damageWaveStarted;
@@ -5190,6 +5230,7 @@ public final class PetAbilitiesManager {
 		private final Map<UUID, Long> nextHitTickByAttacker = new LinkedHashMap<>();
 		private final Map<UUID, LivingEntity> previousTargets = new LinkedHashMap<>();
 		private final Map<UUID, NeutralMobState> previousNeutralMobStates = new LinkedHashMap<>();
+		private final Set<UUID> tauntedEntityIds = new LinkedHashSet<>();
 
 		private ReflectiveTauntState(
 			UUID ownerUuid,
@@ -5198,7 +5239,8 @@ public final class PetAbilitiesManager {
 			long startedTick,
 			long untilTick,
 			double radius,
-			double reflectionPercentage
+			double reflectionPercentage,
+			double movementSpeedBonus
 		) {
 			this.ownerUuid = ownerUuid;
 			this.centerEntityUuid = centerEntityUuid;
@@ -5207,6 +5249,7 @@ public final class PetAbilitiesManager {
 			this.untilTick = untilTick;
 			this.radius = radius;
 			this.reflectionPercentage = reflectionPercentage;
+			this.movementSpeedBonus = movementSpeedBonus;
 			this.waveStartedTick = untilTick;
 			this.waveUntilTick = untilTick;
 		}

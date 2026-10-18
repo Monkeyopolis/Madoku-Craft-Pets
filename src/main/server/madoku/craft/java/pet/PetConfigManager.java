@@ -1181,7 +1181,7 @@ public final class PetConfigManager {
 				}
 				if (usesReflectiveTaunt) {
       ability.addProperty("taunt-radius", 12.0D);
-					ability.addProperty("taunt-duration", 5.0D);
+					ability.addProperty("taunt-duration", 7.0D);
 					ability.addProperty("reflected-damage", 0.20D);
 					ability.addProperty("cooldown", 40.0D);
 				}
