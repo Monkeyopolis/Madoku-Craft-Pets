@@ -601,6 +601,7 @@ public final class PetConfigManager {
 		final double movementSpeedBonusAmount;
 		final double sprintSpeedBoostAmount;
 		final long cooldownTicks;
+		final long exhaustionTicks;
 		final double attackArcStepDegrees;
 		final double attackRearOffset;
 		final double attackRearSpread;
@@ -641,6 +642,7 @@ public final class PetConfigManager {
 			double movementSpeedBonusAmount,
 			double sprintSpeedBoostAmount,
 			long cooldownTicks,
+			long exhaustionTicks,
 			double attackArcStepDegrees,
 			double attackRearOffset,
 			double attackRearSpread,
@@ -683,6 +685,7 @@ public final class PetConfigManager {
 			this.movementSpeedBonusAmount = movementSpeedBonusAmount;
 			this.sprintSpeedBoostAmount = sprintSpeedBoostAmount;
 			this.cooldownTicks = cooldownTicks;
+			this.exhaustionTicks = exhaustionTicks;
 			this.attackArcStepDegrees = attackArcStepDegrees;
 			this.attackRearOffset = attackRearOffset;
 			this.attackRearSpread = attackRearSpread;
@@ -739,7 +742,7 @@ public final class PetConfigManager {
 			double resolvedFallDamageReduction = fallDamageReductionAmount;
 			double resolvedMaxHealthBonus = maxHealthBonusAmount;
 			if (MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS.equals(abilityType)) {
-				resolvedMaxHealthBonus += (Math.max(1, level) - 1) * 0.025D;
+				resolvedMaxHealthBonus += (Math.max(1, level) - 1) * 0.5D;
 			}
 			double resolvedDamageReduction = damageReductionAmount;
 			double resolvedDamageBlock = damageBlockAmount;
@@ -861,6 +864,7 @@ public final class PetConfigManager {
 				resolvedMovementSpeedBonus,
 				resolvedSprintSpeedBoost,
 				resolvedCooldownTicks,
+				exhaustionTicks,
 				attackArcStepDegrees,
 				attackRearOffset,
 				attackRearSpread,
@@ -904,6 +908,7 @@ public final class PetConfigManager {
 				movementSpeedBonusAmount,
 				sprintSpeedBoostAmount,
 				0L,
+				exhaustionTicks,
 				attackArcStepDegrees,
 				attackRearOffset,
 				attackRearSpread,
@@ -1207,13 +1212,16 @@ public final class PetConfigManager {
 					ability.addProperty("cooldown", 45.0D);
 				}
 				if (MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(resolvedAbilityType)) {
-					ability.addProperty("player-damage-bonus", 2.0D);
+					ability.addProperty("player-damage-bonus", 1.0D);
 				}
 				if (MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(resolvedAbilityType)) {
 					ability.addProperty("fall-damage-reduction", 0.30D);
 				}
 				if (MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS.equals(resolvedAbilityType)) {
-					ability.addProperty("max-health-bonus", 0.10D);
+					ability.addProperty("max-health-bonus", 2.0D);
+				}
+				if (MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(resolvedAbilityType)) {
+					ability.addProperty("exhaustion-ticks", 100L);
 				}
 				if (MadokuPetManager.PET_ABILITY_DAMAGE_REDUCTION.equals(resolvedAbilityType)) {
 					ability.addProperty("damage-reduction", 0.08D);
@@ -1270,13 +1278,21 @@ public final class PetConfigManager {
 					getDouble(
 						source,
 						"player-damage-bonus",
-						MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType) ? 2.0D : 0.0D
+						MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType) ? 1.0D : 0.0D
 					),
 					0.0D,
 					1024.0D
 				);
 				double fallDamageReductionAmount = PetSettings.clampDouble(getDouble(source, "fall-damage-reduction", 0.0D), 0.0D, 1.0D);
-				double maxHealthBonusAmount = PetSettings.clampDouble(getDouble(source, "max-health-bonus", 0.0D), 0.0D, 10.0D);
+				double maxHealthBonusAmount = PetSettings.clampDouble(
+					getDouble(
+						source,
+						"max-health-bonus",
+						MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS.equals(abilityType) ? 2.0D : 0.0D
+					),
+					0.0D,
+					10.0D
+				);
 				double damageReductionAmount = PetSettings.clampDouble(
 					getDouble(
 						source,
@@ -1423,7 +1439,7 @@ public final class PetConfigManager {
 								resolvedSource,
 								"player-damage-bonus",
 								MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType)
-									? 2.0D
+									? 1.0D
 									: getDouble(resolvedSource, "damage-boost",
 										MadokuPetManager.PET_ABILITY_RAMPAGE.equals(abilityType) ? 0.10D : 0.0D)
 							),
@@ -1431,7 +1447,15 @@ public final class PetConfigManager {
 							1024.0D
 						),
 						PetSettings.clampDouble(getDouble(resolvedSource, "fall-damage-reduction", 0.0D), 0.0D, 1.0D),
-						PetSettings.clampDouble(getDouble(resolvedSource, "max-health-bonus", 0.0D), 0.0D, 10.0D),
+						PetSettings.clampDouble(
+							getDouble(
+								resolvedSource,
+								"max-health-bonus",
+								MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS.equals(abilityType) ? 2.0D : 0.0D
+							),
+							0.0D,
+							10.0D
+						),
 						PetSettings.clampDouble(
 							getDouble(
 								resolvedSource,
@@ -1450,6 +1474,7 @@ public final class PetConfigManager {
 						PetSettings.clampDouble(getDouble(resolvedSource, "movement-speed-bonus", 0.0D), 0.0D, 10.0D),
 						PetSettings.clampDouble(getDouble(resolvedSource, "sprint-speed-boost", 0.0D), 0.0D, 10.0D),
 						PetSettings.clampLong(getLong(resolvedSource, "cooldown-ticks", 0L), 0L, 20L * 60L * 60L),
+						PetSettings.clampLong(getLong(resolvedSource, "exhaustion-ticks", 0L), 0L, 20L * 60L * 60L),
 						PetSettings.clampDouble(getDouble(resolvedSource, "attack-arc-step-degrees", defaultAttackArcStepDegreesForAbility(abilityType)), 0.0D, 90.0D),
 						PetSettings.clampDouble(getDouble(resolvedSource, "attack-rear-offset", defaultAttackRearOffsetForAbility(abilityType)), 0.0D, 4.0D),
 						PetSettings.clampDouble(getDouble(resolvedSource, "attack-rear-spread", defaultAttackRearSpreadForAbility(abilityType)), 0.0D, 4.0D),
@@ -1590,7 +1615,7 @@ public final class PetConfigManager {
 					} else if (MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(configuredAbility) && ability.fallDamageReductionAmount > 0.0D) {
 						descriptions.add("Passive: Reduces fall damage by " + MadokuPetManager.formatPercent(ability.fallDamageReductionAmount) + ".");
 					} else if (MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS.equals(configuredAbility) && ability.maxHealthBonusAmount > 0.0D) {
-						descriptions.add("Passive: Increases max health by " + MadokuPetManager.formatPercent(ability.maxHealthBonusAmount) + ".");
+						descriptions.add("Passive: Increases max health by " + MadokuPetManager.formatAbilityAmount(ability.maxHealthBonusAmount) + ".");
 					} else if (MadokuPetManager.PET_ABILITY_DAMAGE_REDUCTION.equals(configuredAbility) && ability.damageReductionAmount > 0.0D) {
 						descriptions.add("Passive: Reduces incoming damage by "
 							+ MadokuPetManager.formatPercent(ability.damageReductionAmount) + ".");
@@ -1609,7 +1634,8 @@ public final class PetConfigManager {
 					} else if (MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(configuredAbility)) {
 						descriptions.add("Automatic: Reveals nearby mobs; they take " + MadokuPetManager.formatPercent(ability.mobScanVulnerabilityAmount) + " more damage.");
 					} else if (MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(configuredAbility) && ability.attackDamage > 0.0F) {
-						descriptions.add("Automatic: Swarms nearby hostile mobs for " + MadokuPetManager.formatAbilityAmount(ability.attackDamage) + " damage per second.");
+						descriptions.add("Automatic: Swarms nearby hostile mobs for "
+							+ MadokuPetManager.formatAbilityAmount(ability.attackDamage) + " damage per second.");
 					} else if (MadokuPetManager.PET_ABILITY_MOVEMENT_SPEED_BONUS.equals(configuredAbility)
 						&& ability.movementSpeedBonusAmount > 0.0D) {
 						descriptions.add("Passive: Increases movement speed by "
@@ -1649,6 +1675,10 @@ public final class PetConfigManager {
 				if (ability.cooldownTicks > 0L) {
 					descriptions.add(cooldownLabel(ability.abilityType) + " " + MadokuPetManager.formatCooldownSeconds(ability.cooldownTicks) + "s");
 				}
+				if (ability.exhaustionTicks > 0L
+					&& !MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(ability.abilityType)) {
+					descriptions.add("Exhaustion: " + MadokuPetManager.formatCooldownSeconds(ability.exhaustionTicks) + "s");
+				}
 			}
 			return List.copyOf(descriptions);
 		}
@@ -1672,7 +1702,8 @@ public final class PetConfigManager {
 		long minimumCooldownTicks() {
 			long minimum = Long.MAX_VALUE;
 			for (PetAbilityRule ability : abilities) {
-				if (ability.cooldownTicks > 0L) minimum = Math.min(minimum, ability.cooldownTicks);
+				long abilityCooldownTicks = Math.max(ability.cooldownTicks, ability.exhaustionTicks);
+				if (abilityCooldownTicks > 0L) minimum = Math.min(minimum, abilityCooldownTicks);
 			}
 			return minimum == Long.MAX_VALUE ? 0L : minimum;
 		}
@@ -1715,7 +1746,7 @@ public final class PetConfigManager {
 						: 0.0D),
 					resolvedFallDamageReduction,
 					maxHealthBonusAmount + (MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS.equals(abilityType)
-						? (safeLevel - 1) * 0.025D
+						? (safeLevel - 1) * 0.5D
 						: 0.0D),
 					resolvedDamageReduction,
 					damageBlockAmount + (MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK.equals(abilityType)

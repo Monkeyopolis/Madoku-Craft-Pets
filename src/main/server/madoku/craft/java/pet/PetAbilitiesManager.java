@@ -169,6 +169,7 @@ public final class PetAbilitiesManager {
 	private static final String REFLECTIVE_TAUNT_MOVEMENT_SPEED_PREFIX = "madoku-craft.reflective-taunt-movement-speed:";
 	private static final long PERSISTENT_TEMPORARY_ENTITY_SCAN_INTERVAL_TICKS = 20L;
 	private static final Map<UUID, Map<Integer, Map<String, Long>>> PLAYER_ABILITY_COOLDOWNS = new HashMap<>();
+	private static final Map<UUID, Map<Integer, Map<String, Long>>> PLAYER_ABILITY_EXHAUSTIONS = new HashMap<>();
 	private static final List<PendingPetAttack> PENDING_PET_ATTACKS = new ArrayList<>();
 	private static final Map<UUID, Long> NEXT_BEE_TARGET_SCAN_TICK = new HashMap<>();
 	private static final Map<UUID, WebProjectileState> ACTIVE_WEB_PROJECTILES = new ConcurrentHashMap<>();
@@ -197,6 +198,7 @@ public final class PetAbilitiesManager {
 
 	static void reset() {
 		PLAYER_ABILITY_COOLDOWNS.clear();
+		PLAYER_ABILITY_EXHAUSTIONS.clear();
 		PENDING_PET_ATTACKS.clear();
 		NEXT_BEE_TARGET_SCAN_TICK.clear();
 		AdaptiveIntervalAPIManager.clearSystem(BEE_TARGET_SCAN_ADAPTIVE_ID);
@@ -349,6 +351,28 @@ public final class PetAbilitiesManager {
 						long shifted = shiftTickForRollback(cooldownTick, previous, now);
 						changed |= shifted != cooldownTick;
 						cooldownEntry.setValue(shifted);
+					}
+				}
+			}
+			if (changed) {
+				PetHudManager.markAbilityHudDirty(playerEntry.getKey());
+			}
+		}
+		for (Map.Entry<UUID, Map<Integer, Map<String, Long>>> playerEntry : PLAYER_ABILITY_EXHAUSTIONS.entrySet()) {
+			if (playerEntry.getValue() == null) {
+				continue;
+			}
+			boolean changed = false;
+			for (Map<String, Long> slotExhaustions : playerEntry.getValue().values()) {
+				if (slotExhaustions == null) {
+					continue;
+				}
+				for (Map.Entry<String, Long> exhaustionEntry : slotExhaustions.entrySet()) {
+					Long exhaustionTick = exhaustionEntry.getValue();
+					if (exhaustionTick != null) {
+						long shifted = shiftTickForRollback(exhaustionTick, previous, now);
+						changed |= shifted != exhaustionTick;
+						exhaustionEntry.setValue(shifted);
 					}
 				}
 			}
@@ -2267,7 +2291,7 @@ public final class PetAbilitiesManager {
 			maxHealth.removeModifier(PLAYER_HEALTH_MODIFIER);
 			if (bonuses.maxHealth() > 0.0D) {
 				maxHealth.addOrUpdateTransientModifier(new AttributeModifier(
-					PLAYER_HEALTH_MODIFIER, bonuses.maxHealth(), AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL
+					PLAYER_HEALTH_MODIFIER, bonuses.maxHealth(), AttributeModifier.Operation.ADD_VALUE
 				));
 			}
 			if (player.getHealth() > player.getMaxHealth()) player.setHealth(player.getMaxHealth());
@@ -2578,7 +2602,7 @@ public final class PetAbilitiesManager {
 		if (attribute == null) return;
 		attribute.removeModifier(PLAYER_HEALTH_MODIFIER);
 		double bonus = maxHealthBonus(player);
-		if (bonus > 0.0D) attribute.addOrUpdateTransientModifier(new AttributeModifier(PLAYER_HEALTH_MODIFIER, bonus, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+		if (bonus > 0.0D) attribute.addOrUpdateTransientModifier(new AttributeModifier(PLAYER_HEALTH_MODIFIER, bonus, AttributeModifier.Operation.ADD_VALUE));
 		if (player.getHealth() > player.getMaxHealth()) player.setHealth(player.getMaxHealth());
 	}
 
@@ -4159,6 +4183,16 @@ public final class PetAbilitiesManager {
 					ACTIVE_BEE_SWARMS.remove(swarmKey);
 					continue;
 				}
+				if ((gameplayTicks - state.startedGameplayTick) >= state.maxDurationTicks) {
+					setAbilityExhaustion(
+						state.ownerUuid,
+						state.slot,
+						ability.abilityType,
+						gameplayTicks + Math.max(0L, ability.exhaustionTicks)
+					);
+					ACTIVE_BEE_SWARMS.remove(swarmKey);
+					continue;
+				}
 
 				ServerLevel level = findLevel(server, state.dimensionId);
 				LivingEntity target = findLivingEntity(server, state.targetUuid);
@@ -4169,10 +4203,6 @@ public final class PetAbilitiesManager {
 					|| owner.level() != level
 					|| !isValidBeeSwarmTarget(owner, target)
 					|| !isWithinBeeSwarmActiveRange(owner, target)) {
-					ACTIVE_BEE_SWARMS.remove(swarmKey);
-					continue;
-				}
-				if ((gameplayTicks - state.startedGameplayTick) >= state.maxDurationTicks) {
 					ACTIVE_BEE_SWARMS.remove(swarmKey);
 					continue;
 				}
@@ -4832,6 +4862,7 @@ public final class PetAbilitiesManager {
 		static void clearSlotCooldowns(UUID playerId) {
 			if (playerId != null) {
 				PLAYER_ABILITY_COOLDOWNS.remove(playerId);
+				PLAYER_ABILITY_EXHAUSTIONS.remove(playerId);
 				PetHudManager.markAbilityHudDirty(playerId);
 			}
 		}
@@ -4857,10 +4888,27 @@ public final class PetAbilitiesManager {
 			PetHudManager.markAbilityHudDirty(playerId);
 		}
 
+		private static void setAbilityExhaustion(UUID playerId, int slot, String abilityType, long exhaustionTick) {
+			if (playerId == null || slot < 0 || slot >= SLOT_COUNT || abilityType == null || abilityType.isBlank()) return;
+			long normalizedTick = Math.max(0L, exhaustionTick);
+			if (normalizedTick <= 0L) {
+				return;
+			}
+			PLAYER_ABILITY_EXHAUSTIONS
+				.computeIfAbsent(playerId, ignored -> new HashMap<>())
+				.computeIfAbsent(slot, ignored -> new HashMap<>())
+				.put(PetConfigManager.normalizeAbilityId(abilityType), normalizedTick);
+			PetHudManager.markAbilityHudDirty(playerId);
+		}
+
 		private static long abilityCooldown(UUID playerId, int slot, String abilityType) {
 			Map<Integer, Map<String, Long>> playerCooldowns = PLAYER_ABILITY_COOLDOWNS.get(playerId);
 			Map<String, Long> slotCooldowns = playerCooldowns == null ? null : playerCooldowns.get(slot);
-			return slotCooldowns == null ? 0L : slotCooldowns.getOrDefault(PetConfigManager.normalizeAbilityId(abilityType), 0L);
+			long cooldownTick = slotCooldowns == null ? 0L : slotCooldowns.getOrDefault(PetConfigManager.normalizeAbilityId(abilityType), 0L);
+			Map<Integer, Map<String, Long>> playerExhaustions = PLAYER_ABILITY_EXHAUSTIONS.get(playerId);
+			Map<String, Long> slotExhaustions = playerExhaustions == null ? null : playerExhaustions.get(slot);
+			long exhaustionTick = slotExhaustions == null ? 0L : slotExhaustions.getOrDefault(PetConfigManager.normalizeAbilityId(abilityType), 0L);
+			return Math.max(cooldownTick, exhaustionTick);
 		}
 
 		static void pruneCooldowns(UUID playerId, PetInventory inventory) {
@@ -4886,6 +4934,23 @@ public final class PetAbilitiesManager {
 					changed = true;
 				}
 			}
+			Map<Integer, Map<String, Long>> exhaustions = PLAYER_ABILITY_EXHAUSTIONS.get(playerId);
+			if (exhaustions != null) {
+				for (Map<String, Long> slotExhaustions : exhaustions.values()) {
+					if (slotExhaustions != null) {
+						int sizeBefore = slotExhaustions.size();
+						slotExhaustions.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue() <= gameplayTicks);
+						changed |= sizeBefore != slotExhaustions.size();
+					}
+				}
+				int slotsBefore = exhaustions.size();
+				exhaustions.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().isEmpty());
+				changed |= slotsBefore != exhaustions.size();
+				if (exhaustions.isEmpty()) {
+					PLAYER_ABILITY_EXHAUSTIONS.remove(playerId);
+					changed = true;
+				}
+			}
 			if (changed) PetHudManager.markAbilityHudDirty(playerId);
 		}
 
@@ -4904,7 +4969,8 @@ public final class PetAbilitiesManager {
 				if (rule == null || !rule.enabled) continue;
 				int cooldownIndex = 0;
 				for (PetAbilityRule ability : rule.abilities) {
-					if (ability.cooldownTicks <= 0L || cooldownIndex >= PetAPIManager.MAX_ABILITY_COOLDOWNS_PER_PET) continue;
+					if (Math.max(ability.cooldownTicks, ability.exhaustionTicks) <= 0L
+						|| cooldownIndex >= PetAPIManager.MAX_ABILITY_COOLDOWNS_PER_PET) continue;
 					long cooldown = abilityCooldown(playerId, slot, ability.abilityType);
 					remaining[slot * PetAPIManager.MAX_ABILITY_COOLDOWNS_PER_PET + cooldownIndex] =
 						(int) Math.min(Integer.MAX_VALUE, Math.max(0L, cooldown - now));
@@ -4946,6 +5012,7 @@ public final class PetAbilitiesManager {
 
 		static void applyPersistedData(JsonObject source) {
 			PLAYER_ABILITY_COOLDOWNS.clear();
+			PLAYER_ABILITY_EXHAUSTIONS.clear();
 			applyPersistedPlayerData(source);
 		}
 
