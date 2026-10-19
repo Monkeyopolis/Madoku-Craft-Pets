@@ -1221,7 +1221,7 @@ public final class PetConfigManager {
 					ability.addProperty("max-health-bonus", 2.0D);
 				}
 				if (MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(resolvedAbilityType)) {
-					ability.addProperty("exhaustion-ticks", 100L);
+					ability.addProperty("exhaustion-ticks", 60L);
 				}
 				if (MadokuPetManager.PET_ABILITY_DAMAGE_REDUCTION.equals(resolvedAbilityType)) {
 					ability.addProperty("damage-reduction", 0.08D);
