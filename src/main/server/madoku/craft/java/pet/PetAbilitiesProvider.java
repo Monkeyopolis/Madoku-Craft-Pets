@@ -20,8 +20,10 @@ public interface PetAbilitiesProvider {
 	default float scaleWebMovementSpeed(LivingEntity entity, float speed) { return speed; }
 	default float scaleTauntedMovementSpeed(LivingEntity entity, float speed) { return speed; }
 	default float scalePlayerMovementSpeed(LivingEntity entity, float speed) { return speed; }
+	default float scalePlayerJumpPower(Player player, float jumpPower) { return jumpPower; }
 	default Vec3 scaleWebMovement(LivingEntity entity, Vec3 movement) { return movement; }
 	default void handlePlayerLeftClick(ServerPlayer player) { }
+	default void handlePlayerJump(ServerPlayer player) { }
 	default boolean hasAbility(ItemStack stack) { return false; }
 	default int cooldownTicks(ItemStack stack) { return 0; }
 	default int cooldownTicks(ServerPlayer player, int slot, ItemStack stack) { return cooldownTicks(stack); }

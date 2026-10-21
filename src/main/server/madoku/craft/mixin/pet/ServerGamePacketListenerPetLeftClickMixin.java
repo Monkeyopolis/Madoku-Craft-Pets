@@ -22,6 +22,28 @@ public abstract class ServerGamePacketListenerPetLeftClickMixin {
 		PetAbilitiesAPIManager.handlePlayerLeftClick(listener.getPlayer());
 	}
 
+	@Inject(
+		method = "handlePlayerInput",
+		at = @At(
+			value = "INVOKE",
+			target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V",
+			shift = At.Shift.AFTER
+		)
+	)
+	private void madokuCraft$handleConditionalDoubleJump(
+		net.minecraft.network.protocol.game.ServerboundPlayerInputPacket packet,
+		CallbackInfo ci
+	) {
+		ServerGamePacketListenerImpl listener = (ServerGamePacketListenerImpl) (Object) this;
+		net.minecraft.server.level.ServerPlayer player = listener.getPlayer();
+		net.minecraft.world.entity.player.Input previousInput = listener.getPlayer().getLastClientInput();
+		net.minecraft.world.entity.player.Input currentInput = packet.input();
+		boolean jumpRisingEdge = currentInput != null && currentInput.jump() && (previousInput == null || !previousInput.jump());
+		if (jumpRisingEdge) {
+			PetAbilitiesAPIManager.handlePlayerJump(player);
+		}
+	}
+
 	@Inject(method = "handleInteract", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$preventWebStunnedPlayerInteraction(
 		net.minecraft.network.protocol.game.ServerboundInteractPacket packet,

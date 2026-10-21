@@ -35,6 +35,8 @@ public final class PetAPIManager {
 	public static final String PET_ABILITY_LIFESTEAL = "lifesteal";
 	public static final String PET_ABILITY_WOLFPACK = "wolfpack";
 	public static final String PET_ABILITY_RAMPAGE = "rampage";
+	public static final String PET_ABILITY_DOUBLE_JUMP = "double_jump";
+	public static final String PET_ABILITY_JUMP_EFFICIENCY = "jump_efficiency";
 
 	private static final PetProvider UNAVAILABLE_PROVIDER = new PetProvider() { };
 	private static volatile PetProvider provider = UNAVAILABLE_PROVIDER;

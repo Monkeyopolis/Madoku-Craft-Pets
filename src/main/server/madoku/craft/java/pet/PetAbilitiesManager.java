@@ -85,6 +85,8 @@ public final class PetAbilitiesManager {
 	private static final String PET_ABILITY_LIFESTEAL = MadokuPetManager.PET_ABILITY_LIFESTEAL;
 	private static final String PET_ABILITY_WOLFPACK = MadokuPetManager.PET_ABILITY_WOLFPACK;
 	private static final String PET_ABILITY_RAMPAGE = MadokuPetManager.PET_ABILITY_RAMPAGE;
+	private static final String PET_ABILITY_DOUBLE_JUMP = MadokuPetManager.PET_ABILITY_DOUBLE_JUMP;
+	private static final String PET_ABILITY_JUMP_EFFICIENCY = MadokuPetManager.PET_ABILITY_JUMP_EFFICIENCY;
 	private static final String IRON_GOLEM_PET_ID = "minecraft:iron-golem";
 	private static final long REFLECTIVE_TAUNT_ATTACK_DELAY_TICKS = 10L;
 	private static final long REFLECTIVE_TAUNT_DAMAGE_WAVE_TICKS = 2L;
@@ -191,6 +193,8 @@ public final class PetAbilitiesManager {
 	private static final Map<UUID, ExplosiveVulnerabilityState> EXPLOSIVE_VULNERABILITY_BY_ENTITY = new ConcurrentHashMap<>();
 	private static final Map<UUID, Entity> PERSISTENT_TEMPORARY_ENTITIES_BY_ID = new ConcurrentHashMap<>();
 	private static final Map<UUID, PassiveBonuses> PASSIVE_BONUSES_BY_PLAYER = new HashMap<>();
+	private static final Set<UUID> DOUBLE_JUMP_USED_BY_PLAYER = ConcurrentHashMap.newKeySet();
+	private static final Set<UUID> CLIENT_DOUBLE_JUMP_PRESERVATION_BY_PLAYER = ConcurrentHashMap.newKeySet();
 	private static long nextPersistentTemporaryEntityScanTick = Long.MIN_VALUE;
 	private static boolean persistentTemporaryEntityRecoveryPending = true;
 	private static long lastGameplayTick = Long.MIN_VALUE;
@@ -221,6 +225,8 @@ public final class PetAbilitiesManager {
 		EXPLOSIVE_VULNERABILITY_BY_ENTITY.clear();
 		PERSISTENT_TEMPORARY_ENTITIES_BY_ID.clear();
 		PASSIVE_BONUSES_BY_PLAYER.clear();
+		DOUBLE_JUMP_USED_BY_PLAYER.clear();
+		CLIENT_DOUBLE_JUMP_PRESERVATION_BY_PLAYER.clear();
 		nextPersistentTemporaryEntityScanTick = Long.MIN_VALUE;
 		persistentTemporaryEntityRecoveryPending = true;
 		lastGameplayTick = Long.MIN_VALUE;
@@ -1057,6 +1063,16 @@ public final class PetAbilitiesManager {
 		return (float) (speed * (1.0D + totalBonus));
 	}
 
+	/** Applies the rabbit's passive jump-height bonus to vanilla jump power. */
+	public static float scalePlayerJumpPower(Player player, float jumpPower) {
+		if (player == null || jumpPower <= 0.0F || !PetConfigManager.isEnabled()) {
+			return jumpPower;
+		}
+
+		double bonus = resolveJumpEfficiencyBonus(player);
+		return (float) (jumpPower * (1.0D + bonus));
+	}
+
 	private static double resolveMovementSpeedBonus(Player player) {
 		PetInventory inventory = petInventory(player);
 		if (inventory == null) {
@@ -1075,6 +1091,94 @@ public final class PetAbilitiesManager {
 			}
 		}
 		return Math.max(0.0D, bonus);
+	}
+
+	private static double resolveJumpEfficiencyBonus(Player player) {
+		PetInventory inventory = petInventory(player);
+		if (inventory == null) {
+			return 0.0D;
+		}
+
+		double bonus = 0.0D;
+		boolean hasPrimaryAbility = false;
+		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
+			PetRule rule = PetConfigManager.resolvePetRule(inventory.getItem(slot));
+			PetAbilityRule ability = rule == null ? null : rule.ability(PET_ABILITY_JUMP_EFFICIENCY);
+			if (ability != null) {
+				double abilityBonus = Math.max(0.0D, ability.jumpHeightBonusAmount);
+				bonus += abilityBonus * (hasPrimaryAbility ? 0.5D : 1.0D);
+				hasPrimaryAbility = true;
+			}
+		}
+		return Math.max(0.0D, bonus);
+	}
+
+	/** Attempts the one available airborne jump supplied by a double-jump ability. */
+	public static void handlePlayerJump(ServerPlayer player) {
+		if (player == null) {
+			return;
+		}
+
+		boolean enabled = PetConfigManager.isEnabled();
+		UUID playerId = player.getUUID();
+		if (!player.isAlive() || player.isSpectator() || !enabled || player.onGround()
+			|| player.isPassenger() || player.isFallFlying() || player.getAbilities().flying) {
+			return;
+		}
+
+		PetInventory inventory = petInventory(player);
+		if (inventory == null) {
+			return;
+		}
+		if (DOUBLE_JUMP_USED_BY_PLAYER.contains(playerId)) {
+			return;
+		}
+		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
+			ItemStack stack = inventory.getItem(slot);
+			PetRule rule = PetConfigManager.resolvePetRule(stack);
+			if (rule != null && rule.hasAbility(PET_ABILITY_DOUBLE_JUMP)) {
+				double fallDistance = player.fallDistance;
+				player.jumpFromGround();
+				player.fallDistance = fallDistance;
+				markServerDoubleJumpUsed(playerId);
+				return;
+			}
+		}
+	}
+
+	static void markServerDoubleJumpUsed(UUID playerId) {
+		if (playerId != null) {
+			DOUBLE_JUMP_USED_BY_PLAYER.add(playerId);
+		}
+	}
+
+	static void markClientDoubleJumpUsed(UUID playerId) {
+		if (playerId != null) {
+			CLIENT_DOUBLE_JUMP_PRESERVATION_BY_PLAYER.add(playerId);
+		}
+	}
+
+	/** Returns whether vanilla fall-distance accumulation should be preserved for this double jump. */
+	public static boolean isDoubleJumpFallDistancePreserved(Entity entity) {
+		if (!(entity instanceof Player player)) {
+			return false;
+		}
+		Set<UUID> state = entity.level().isClientSide()
+			? CLIENT_DOUBLE_JUMP_PRESERVATION_BY_PLAYER
+			: DOUBLE_JUMP_USED_BY_PLAYER;
+		return state.contains(player.getUUID());
+	}
+
+	/** Clears airborne jump state as soon as a player lands. */
+	static void tickDoubleJumpStates(MinecraftServer server) {
+		if (server == null) {
+			return;
+		}
+		DOUBLE_JUMP_USED_BY_PLAYER.removeIf(playerId -> {
+			ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+			boolean reset = player == null || !player.isAlive() || player.onGround();
+			return reset;
+		});
 	}
 
 	private PetAbilitiesManager() {
@@ -1134,7 +1238,9 @@ public final class PetAbilitiesManager {
 				MadokuPetManager.PET_ABILITY_SPRINT_BOOST,
 				MadokuPetManager.PET_ABILITY_LIFESTEAL,
 				MadokuPetManager.PET_ABILITY_WOLFPACK,
-				MadokuPetManager.PET_ABILITY_RAMPAGE
+				MadokuPetManager.PET_ABILITY_RAMPAGE,
+				MadokuPetManager.PET_ABILITY_DOUBLE_JUMP,
+				MadokuPetManager.PET_ABILITY_JUMP_EFFICIENCY
 				};
 				for (String abilityType : abilityTypes) {
 					defaults.put(PetConfigManager.abilityConfigId(abilityType), PetConfigManager.PetRule.defaultsForAbility(abilityType));
@@ -5111,6 +5217,18 @@ public final class PetAbilitiesManager {
 	static void clearPlayerSprintState(UUID playerId) {
 		if (playerId != null) {
 			ACTIVE_SPRINT_BOOSTS.remove(playerId);
+		}
+	}
+
+	static void clearPlayerDoubleJumpState(UUID playerId) {
+		if (playerId != null) {
+			DOUBLE_JUMP_USED_BY_PLAYER.remove(playerId);
+		}
+	}
+
+	static void clearClientDoubleJumpState(UUID playerId) {
+		if (playerId != null) {
+			CLIENT_DOUBLE_JUMP_PRESERVATION_BY_PLAYER.remove(playerId);
 		}
 	}
 

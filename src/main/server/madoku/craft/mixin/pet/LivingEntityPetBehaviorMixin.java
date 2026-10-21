@@ -6,6 +6,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -17,6 +18,14 @@ import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
 
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityPetBehaviorMixin {
+	@Inject(method = "getJumpPower", at = @At("RETURN"), cancellable = true)
+	private void madokuCraft$scalePlayerJumpPower(CallbackInfoReturnable<Float> cir) {
+		LivingEntity entity = (LivingEntity) (Object) this;
+		if (entity instanceof Player player) {
+			cir.setReturnValue(PetAbilitiesAPIManager.scalePlayerJumpPower(player, cir.getReturnValue()));
+		}
+	}
+
 	@Inject(method = "travel", at = @At("TAIL"))
 	private void madokuCraft$stopWebStunnedHorizontalMovement(Vec3 travelVector, CallbackInfo ci) {
 		LivingEntity entity = (LivingEntity) (Object) this;

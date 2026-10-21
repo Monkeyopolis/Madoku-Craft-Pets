@@ -52,6 +52,8 @@ public final class MadokuPetManager {
 	static final String PET_ABILITY_LIFESTEAL = "lifesteal";
 	static final String PET_ABILITY_WOLFPACK = "wolfpack";
 	static final String PET_ABILITY_RAMPAGE = "rampage";
+	static final String PET_ABILITY_DOUBLE_JUMP = "double_jump";
+	static final String PET_ABILITY_JUMP_EFFICIENCY = "jump_efficiency";
 	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
 	private static final Map<UUID, TeleportStamp> LAST_TELEPORT_STAMPS_BY_PLAYER = new HashMap<>();
 
@@ -192,6 +194,7 @@ public final class MadokuPetManager {
 		}
 		lastGameplayTick = gameplayTick;
 		PetAbilitiesManager.handleGameplayTime(gameplayTick);
+		PetAbilitiesManager.tickDoubleJumpStates(server);
 		PetAbilitiesManager.restorePersistentTemporaryEntities(server);
 		if (!hasRuntimeWork()) return;
 		long now = gameplayTick;
@@ -319,6 +322,7 @@ public final class MadokuPetManager {
 		PetAbilitiesManager.stopBeeSwarmsForOwner(playerId);
 		PetAbilitiesManager.stopReflectiveTauntForOwner(server, playerId);
 		PetAbilitiesManager.clearPlayerSprintState(playerId);
+		PetAbilitiesManager.clearPlayerDoubleJumpState(playerId);
 		PetAbilitiesManager.clearPlayerCombatState(server, playerId);
 		PetAbilitiesManager.invalidatePassiveAbilityBonuses(playerId);
 		NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);

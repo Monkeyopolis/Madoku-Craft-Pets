@@ -20,8 +20,10 @@ public final class MadokuPetAbilitiesProvider implements PetAbilitiesProvider {
 	@Override public float scaleWebMovementSpeed(LivingEntity entity, float speed) { return PetAbilitiesManager.scaleWebMovementSpeed(entity, speed); }
 	@Override public float scaleTauntedMovementSpeed(LivingEntity entity, float speed) { return PetAbilitiesManager.scaleTauntedMovementSpeed(entity, speed); }
 	@Override public float scalePlayerMovementSpeed(LivingEntity entity, float speed) { return PetAbilitiesManager.scalePlayerMovementSpeed(entity, speed); }
+	@Override public float scalePlayerJumpPower(Player player, float jumpPower) { return PetAbilitiesManager.scalePlayerJumpPower(player, jumpPower); }
 	@Override public Vec3 scaleWebMovement(LivingEntity entity, Vec3 movement) { return PetAbilitiesManager.scaleWebMovement(entity, movement); }
 	@Override public void handlePlayerLeftClick(ServerPlayer player) { PetAbilitiesManager.handlePlayerLeftClick(player); }
+	@Override public void handlePlayerJump(ServerPlayer player) { PetAbilitiesManager.handlePlayerJump(player); }
 	@Override public boolean hasAbility(ItemStack stack) { return PetAbilitiesManager.hasAbility(stack); }
 	@Override public int cooldownTicks(ItemStack stack) { return PetAbilitiesManager.cooldownTicks(stack); }
 	@Override public int cooldownTicks(ServerPlayer player, int slot, ItemStack stack) { return PetAbilitiesManager.cooldownTicks(player, slot, stack); }

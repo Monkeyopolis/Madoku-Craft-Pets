@@ -1,6 +1,7 @@
 package madoku.craft.mixin.pet;
 
 import madoku.craft.java.pet.PetAbilitiesAPIManager;
+import madoku.craft.java.pet.PetAbilitiesManager;
 import madoku.craft.java.pet.PetComponentsAPIManager;
 import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -11,6 +12,29 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Entity.class)
 public abstract class EntityPetBehaviorMixin {
+	@Inject(method = "checkFallDistanceAccumulation", at = @At("HEAD"), cancellable = true)
+	private void madokuCraft$preserveDoubleJumpFallDistance(CallbackInfo ci) {
+		Entity entity = (Entity) (Object) this;
+		boolean preserve = PetAbilitiesManager.isDoubleJumpFallDistancePreserved(entity);
+		if (preserve) {
+			ci.cancel();
+		}
+	}
+
+	@Inject(method = "resetFallDistance", at = @At("HEAD"), cancellable = true)
+	private void madokuCraft$preserveDoubleJumpFallDistanceOnReset(CallbackInfo ci) {
+		Entity entity = (Entity) (Object) this;
+		if (entity instanceof net.minecraft.world.entity.player.Player player) {
+			boolean preserve = PetAbilitiesManager.isDoubleJumpFallDistancePreserved(entity);
+			boolean upwardDoubleJumpReset = preserve
+				&& player.fallDistance > 0.0D
+				&& (!player.onGround() || player.getDeltaMovement().y > 0.0D);
+			if (upwardDoubleJumpReset) {
+				ci.cancel();
+			}
+		}
+	}
+
 	@Inject(method = "isPickable", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$hidePetSelection(CallbackInfoReturnable<Boolean> cir) {
 		if (PetComponentsAPIManager.isManaged((Entity) (Object) this)) {

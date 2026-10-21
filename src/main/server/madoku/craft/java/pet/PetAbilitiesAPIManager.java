@@ -19,7 +19,9 @@ public final class PetAbilitiesAPIManager {
 		if (candidate == null) throw new IllegalArgumentException("Pet abilities provider must not be null.");
 		provider = candidate;
 	}
-	public static void unregisterProvider() { provider = UNAVAILABLE_PROVIDER; }
+	public static void unregisterProvider() {
+		provider = UNAVAILABLE_PROVIDER;
+	}
 	public static void initialize() { provider.initialize(); }
 	public static float applyMobScanDamage(LivingEntity entity, float amount) { return provider.applyMobScanDamage(entity, amount); }
 	public static float applyDamageVulnerabilities(LivingEntity entity, float amount) { return provider.applyDamageVulnerabilities(entity, amount); }
@@ -28,8 +30,10 @@ public final class PetAbilitiesAPIManager {
 	public static float scaleWebMovementSpeed(LivingEntity entity, float speed) { return provider.scaleWebMovementSpeed(entity, speed); }
 	public static float scaleTauntedMovementSpeed(LivingEntity entity, float speed) { return provider.scaleTauntedMovementSpeed(entity, speed); }
 	public static float scalePlayerMovementSpeed(LivingEntity entity, float speed) { return provider.scalePlayerMovementSpeed(entity, speed); }
+	public static float scalePlayerJumpPower(Player player, float jumpPower) { return provider.scalePlayerJumpPower(player, jumpPower); }
 	public static Vec3 scaleWebMovement(LivingEntity entity, Vec3 movement) { return provider.scaleWebMovement(entity, movement); }
 	public static void handlePlayerLeftClick(ServerPlayer player) { provider.handlePlayerLeftClick(player); }
+	public static void handlePlayerJump(ServerPlayer player) { provider.handlePlayerJump(player); }
 	public static boolean hasAbility(ItemStack stack) { return provider.hasAbility(stack); }
 	public static int cooldownTicks(ItemStack stack) { return provider.cooldownTicks(stack); }
 	public static int cooldownTicks(ServerPlayer player, int slot, ItemStack stack) { return provider.cooldownTicks(player, slot, stack); }

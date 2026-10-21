@@ -11,6 +11,7 @@ import net.minecraft.client.model.animal.goat.GoatModel;
 import net.minecraft.client.model.animal.golem.IronGolemModel;
 import net.minecraft.client.model.animal.feline.AdultOcelotModel;
 import net.minecraft.client.model.animal.pig.PigModel;
+import net.minecraft.client.model.animal.rabbit.AdultRabbitModel;
 import net.minecraft.client.model.animal.sheep.SheepModel;
 import net.minecraft.client.model.animal.sheep.SheepFurModel;
 import net.minecraft.client.model.animal.wolf.AdultWolfModel;
@@ -30,6 +31,7 @@ import net.minecraft.client.renderer.entity.state.CreeperRenderState;
 import net.minecraft.client.renderer.entity.state.GoatRenderState;
 import net.minecraft.client.renderer.entity.state.IronGolemRenderState;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+import net.minecraft.client.renderer.entity.state.RabbitRenderState;
 import net.minecraft.client.renderer.entity.state.FelineRenderState;
 import net.minecraft.client.renderer.entity.state.SheepRenderState;
 import net.minecraft.client.renderer.entity.state.SkeletonRenderState;
@@ -40,6 +42,7 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Crackiness;
+import net.minecraft.world.entity.animal.rabbit.Rabbit;
 
 import java.util.Map;
 
@@ -63,6 +66,7 @@ public final class PetRendererManager {
 		private static final Identifier IRON_GOLEM_TEXTURE = texture("textures/entity/iron_golem/iron_golem.png");
 		private static final Identifier OCELOT_TEXTURE = texture("textures/entity/cat/ocelot.png");
 		private static final Identifier PIG_TEXTURE = texture("textures/entity/pig/pig_temperate.png");
+		private static final Identifier RABBIT_TEXTURE = texture("textures/entity/rabbit/rabbit_brown.png");
 		private static final Identifier SHEEP_TEXTURE = texture("textures/entity/sheep/sheep.png");
 		private static final Identifier SKELETON_TEXTURE = texture("textures/entity/skeleton/skeleton.png");
 		private static final Identifier SPIDER_TEXTURE = texture("textures/entity/spider/spider.png");
@@ -84,6 +88,7 @@ public final class PetRendererManager {
 				Map.entry("minecraft:iron-golem", new IronGolemProfile(new IronGolemModel(context.bakeLayer(ModelLayers.IRON_GOLEM)), IRON_GOLEM_TEXTURE)),
 				Map.entry("minecraft:ocelot", new OcelotProfile(new AdultOcelotModel(context.bakeLayer(ModelLayers.OCELOT)), OCELOT_TEXTURE)),
 				Map.entry("minecraft:pig", new LivingProfile(new PigModel(context.bakeLayer(ModelLayers.PIG)), PIG_TEXTURE)),
+				Map.entry("minecraft:rabbit", new RabbitProfile(new AdultRabbitModel(context.bakeLayer(ModelLayers.RABBIT)), RABBIT_TEXTURE)),
 				Map.entry("minecraft:sheep", new SheepProfile(
 					new SheepModel(context.bakeLayer(ModelLayers.SHEEP)),
 					new SheepFurModel(context.bakeLayer(ModelLayers.SHEEP_WOOL)),
@@ -303,6 +308,30 @@ public final class PetRendererManager {
 			state.lieDownAmount = 0.0F;
 			state.lieDownAmountTail = 0.0F;
 			state.relaxStateOneAmount = 0.0F;
+			model.setupAnim(state);
+			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
+		}
+	}
+
+	private static final class RabbitProfile implements PetModelProfile {
+		private final AdultRabbitModel model;
+		private final Identifier texture;
+
+		private RabbitProfile(AdultRabbitModel model, Identifier texture) {
+			this.model = model;
+			this.texture = texture;
+		}
+
+		@Override
+		public void render(PetRenderState source, PoseStack poseStack, SubmitNodeCollector collector) {
+			RabbitRenderState state = copyLiving(source, new RabbitRenderState());
+			state.jumpCompletion = 0.0F;
+			state.isToast = false;
+			state.variant = Rabbit.Variant.BROWN;
+			// The neutral pet is not a Rabbit entity, so its Rabbit animation states are
+			// not updated by Rabbit.aiStep(). Drive the vanilla hop cycle from the
+			// movement state carried over from the pet entity instead.
+			state.hopAnimationState.animateWhen(source.walkAnimationSpeed > 0.01F, 0);
 			model.setupAnim(state);
 			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
 		}

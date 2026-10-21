@@ -38,6 +38,8 @@ public final class PetHudManagerClient {
 	private static final Identifier ABILITY_LIFESTEAL_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/lifesteal.png");
 	private static final Identifier ABILITY_RAMPAGE_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/rampage.png");
 	private static final Identifier ABILITY_WOLFPACK_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/wolf-pack.png");
+	private static final Identifier ABILITY_DOUBLE_JUMP_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/double-jump.png");
+	private static final Identifier ABILITY_JUMP_EFFICIENCY_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/jump-efficiency.png");
 	private static final RenderPipeline ABILITY_SLOT_PIPELINE = RenderPipelines.GUI_TEXTURED;
 	private static final int ABILITY_SLOT_TEXTURE_SIZE = 16;
 	private static final int HOTBAR_HALF_WIDTH = 91;
@@ -216,6 +218,8 @@ public final class PetHudManagerClient {
 			case PetAPIManager.PET_ABILITY_LIFESTEAL -> ABILITY_LIFESTEAL_TEXTURE;
 			case PetAPIManager.PET_ABILITY_WOLFPACK -> ABILITY_WOLFPACK_TEXTURE;
 			case PetAPIManager.PET_ABILITY_RAMPAGE -> ABILITY_RAMPAGE_TEXTURE;
+			case PetAPIManager.PET_ABILITY_DOUBLE_JUMP -> ABILITY_DOUBLE_JUMP_TEXTURE;
+			case PetAPIManager.PET_ABILITY_JUMP_EFFICIENCY -> ABILITY_JUMP_EFFICIENCY_TEXTURE;
 			default -> ABILITY_ARROW_TEXTURE;
 		};
 	}
