@@ -2504,7 +2504,11 @@ public final class PetAbilitiesManager {
 	}
 
 	public static float applyDamageReduction(LivingEntity entity, net.minecraft.world.damagesource.DamageSource source, float amount) {
-		if (!(entity instanceof ServerPlayer player) || amount <= 0.0F || !PetConfigManager.isEnabled()) return amount;
+		if (!(entity instanceof ServerPlayer player)
+			|| source == null
+			|| amount <= 0.0F
+			|| !PetConfigManager.isEnabled()
+			|| source.is(DamageTypeTags.IS_FALL)) return amount;
 		double reduction = damageReduction(player);
 		return reduction <= 0.0D ? amount : (float) Math.max(0.0D, amount * (1.0D - reduction));
 	}

@@ -509,14 +509,18 @@ public final class PetConfigManager {
 	}
 
 	private static int rarityExperienceStep(String rarity) {
+		return rarityExperienceMultiplier(rarity);
+	}
+
+	private static int rarityExperienceMultiplier(String rarity) {
 		Tier tier = RarityAPIManager.fromString(rarity);
 		if (tier == null) tier = Tier.COMMON;
 		return switch (tier) {
-			case COMMON -> 2;
-			case RARE -> 4;
-			case EPIC -> 6;
-			case LEGENDARY -> 8;
-			case MYTHIC -> 10;
+			case COMMON -> 1;
+			case RARE -> 2;
+			case EPIC -> 3;
+			case LEGENDARY -> 4;
+			case MYTHIC -> 5;
 		};
 	}
 
@@ -779,7 +783,7 @@ public final class PetConfigManager {
 			}
 			double resolvedJumpHeightBonus = jumpHeightBonusAmount;
 			if (MadokuPetManager.PET_ABILITY_JUMP_EFFICIENCY.equals(abilityType)) {
-				resolvedJumpHeightBonus += (Math.max(1, level) - 1) * 0.01D;
+				resolvedJumpHeightBonus += (Math.max(1, level) - 1) * 0.015D;
 			}
 			double resolvedSprintSpeedBoost = sprintSpeedBoostAmount;
 			long resolvedCooldownTicks = cooldownTicks;
@@ -1207,7 +1211,7 @@ public final class PetConfigManager {
 					ability.addProperty("cooldown", 40.0D);
 				}
 				if (usesMovementSpeedBonus) {
-					ability.addProperty("movement-speed-bonus", 0.06D);
+					ability.addProperty("movement-speed-bonus", 0.08D);
 				}
 				if (usesJumpEfficiency) {
 					ability.addProperty("jump-height-bonus", 0.06D);
