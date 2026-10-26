@@ -7,6 +7,7 @@ import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.animal.bee.AdultBeeModel;
 import net.minecraft.client.model.animal.chicken.AdultChickenModel;
 import net.minecraft.client.model.animal.cow.CowModel;
+import net.minecraft.client.model.animal.equine.DonkeyModel;
 import net.minecraft.client.model.animal.goat.GoatModel;
 import net.minecraft.client.model.animal.golem.IronGolemModel;
 import net.minecraft.client.model.animal.feline.AdultOcelotModel;
@@ -28,6 +29,7 @@ import net.minecraft.client.renderer.entity.state.BatRenderState;
 import net.minecraft.client.renderer.entity.state.BeeRenderState;
 import net.minecraft.client.renderer.entity.state.ChickenRenderState;
 import net.minecraft.client.renderer.entity.state.CreeperRenderState;
+import net.minecraft.client.renderer.entity.state.DonkeyRenderState;
 import net.minecraft.client.renderer.entity.state.GoatRenderState;
 import net.minecraft.client.renderer.entity.state.IronGolemRenderState;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
@@ -62,6 +64,7 @@ public final class PetRendererManager {
 		private static final Identifier CHICKEN_TEXTURE = texture("textures/entity/chicken/chicken_temperate.png");
 		private static final Identifier COW_TEXTURE = texture("textures/entity/cow/cow_temperate.png");
 		private static final Identifier CREEPER_TEXTURE = texture("textures/entity/creeper/creeper.png");
+		private static final Identifier DONKEY_TEXTURE = texture("textures/entity/horse/donkey.png");
 		private static final Identifier GOAT_TEXTURE = texture("textures/entity/goat/goat.png");
 		private static final Identifier IRON_GOLEM_TEXTURE = texture("textures/entity/iron_golem/iron_golem.png");
 		private static final Identifier OCELOT_TEXTURE = texture("textures/entity/cat/ocelot.png");
@@ -84,6 +87,7 @@ public final class PetRendererManager {
 				Map.entry("minecraft:chicken", new ChickenProfile(new AdultChickenModel(context.bakeLayer(ModelLayers.CHICKEN)), CHICKEN_TEXTURE)),
 				Map.entry("minecraft:cow", new LivingProfile(new CowModel(context.bakeLayer(ModelLayers.COW)), COW_TEXTURE)),
 				Map.entry("minecraft:creeper", new CreeperProfile(new CreeperModel(context.bakeLayer(ModelLayers.CREEPER)), CREEPER_TEXTURE)),
+				Map.entry("minecraft:donkey", new DonkeyProfile(new DonkeyModel(context.bakeLayer(ModelLayers.DONKEY)), DONKEY_TEXTURE)),
 				Map.entry("minecraft:goat", new GoatProfile(new GoatModel(context.bakeLayer(ModelLayers.GOAT)), GOAT_TEXTURE)),
 				Map.entry("minecraft:iron-golem", new IronGolemProfile(new IronGolemModel(context.bakeLayer(ModelLayers.IRON_GOLEM)), IRON_GOLEM_TEXTURE)),
 				Map.entry("minecraft:ocelot", new OcelotProfile(new AdultOcelotModel(context.bakeLayer(ModelLayers.OCELOT)), OCELOT_TEXTURE)),
@@ -245,6 +249,25 @@ public final class PetRendererManager {
 			CreeperRenderState state = copyLiving(source, new CreeperRenderState());
 			state.swelling = 0.0F;
 			state.isPowered = false;
+			model.setupAnim(state);
+			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
+		}
+	}
+
+	private static final class DonkeyProfile implements PetModelProfile {
+		private final DonkeyModel model;
+		private final Identifier texture;
+
+		private DonkeyProfile(DonkeyModel model, Identifier texture) {
+			this.model = model;
+			this.texture = texture;
+		}
+
+		@Override
+		public void render(PetRenderState source, PoseStack poseStack, SubmitNodeCollector collector) {
+			DonkeyRenderState state = copyLiving(source, new DonkeyRenderState());
+			state.hasChest = false;
+			state.isRidden = false;
 			model.setupAnim(state);
 			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
 		}

@@ -254,6 +254,7 @@ public final class PetConfigManager {
 		PetAbilitiesManager.AbilitiesConfigManager.applyClientSynchronizedDefinitions(readObjectMap(root, "abilities"));
 		PetEntitiesManager.EntitiesConfigManager.applyClientSynchronizedSourceFiles(readObjectMap(root, "entities"));
 		clientSynchronized = true;
+		PetAbilitiesManager.invalidateClientStorageEfficiencyBonuses();
 	}
 
 	public static void resetClientSyncState() {
@@ -264,6 +265,7 @@ public final class PetConfigManager {
 		clientSynchronized = false;
 		savedClientAbilityDefinitions = Map.of();
 		savedClientEntityDefinitions = Map.of();
+		PetAbilitiesManager.invalidateClientStorageEfficiencyBonuses();
 	}
 
 	private static void captureClientSyncState() {
@@ -335,6 +337,7 @@ public final class PetConfigManager {
 		if ("minecraft:bat".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_MOB_SCAN;
 		if ("minecraft:bee".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_BEE_SWARM;
 		if ("minecraft:chicken".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION;
+		if ("minecraft:donkey".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_STORAGE_EFFICIENCY;
 		if ("minecraft:cow".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK;
 		if ("minecraft:pig".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS;
 		if ("minecraft:rabbit".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_DOUBLE_JUMP;
@@ -610,6 +613,7 @@ public final class PetConfigManager {
 		final double healthRegenerationAmount;
 		final double movementSpeedBonusAmount;
 		final double jumpHeightBonusAmount;
+		final double storageEfficiencyAmount;
 		final double sprintSpeedBoostAmount;
 		final long cooldownTicks;
 		final long exhaustionTicks;
@@ -652,6 +656,7 @@ public final class PetConfigManager {
 			double healthRegenerationAmount,
 			double movementSpeedBonusAmount,
 			double jumpHeightBonusAmount,
+			double storageEfficiencyAmount,
 			double sprintSpeedBoostAmount,
 			long cooldownTicks,
 			long exhaustionTicks,
@@ -696,6 +701,7 @@ public final class PetConfigManager {
 			this.healthRegenerationAmount = healthRegenerationAmount;
 			this.movementSpeedBonusAmount = movementSpeedBonusAmount;
 			this.jumpHeightBonusAmount = jumpHeightBonusAmount;
+			this.storageEfficiencyAmount = storageEfficiencyAmount;
 			this.sprintSpeedBoostAmount = sprintSpeedBoostAmount;
 			this.cooldownTicks = cooldownTicks;
 			this.exhaustionTicks = exhaustionTicks;
@@ -784,6 +790,10 @@ public final class PetConfigManager {
 			double resolvedJumpHeightBonus = jumpHeightBonusAmount;
 			if (MadokuPetManager.PET_ABILITY_JUMP_EFFICIENCY.equals(abilityType)) {
 				resolvedJumpHeightBonus += (Math.max(1, level) - 1) * 0.015D;
+			}
+			double resolvedStorageEfficiency = storageEfficiencyAmount;
+			if (MadokuPetManager.PET_ABILITY_STORAGE_EFFICIENCY.equals(abilityType)) {
+				resolvedStorageEfficiency += (Math.max(1, level) - 1) * 8.0D;
 			}
 			double resolvedSprintSpeedBoost = sprintSpeedBoostAmount;
 			long resolvedCooldownTicks = cooldownTicks;
@@ -880,6 +890,7 @@ public final class PetConfigManager {
 				resolvedHealthRegeneration,
 				resolvedMovementSpeedBonus,
 				resolvedJumpHeightBonus,
+				resolvedStorageEfficiency,
 				resolvedSprintSpeedBoost,
 				resolvedCooldownTicks,
 				exhaustionTicks,
@@ -925,6 +936,7 @@ public final class PetConfigManager {
 				healthRegenerationAmount,
 				movementSpeedBonusAmount,
 				jumpHeightBonusAmount,
+				storageEfficiencyAmount,
 				sprintSpeedBoostAmount,
 				0L,
 				exhaustionTicks,
@@ -1123,6 +1135,7 @@ public final class PetConfigManager {
 				boolean usesWolfpack = MadokuPetManager.PET_ABILITY_WOLFPACK.equals(resolvedAbilityType);
 				boolean usesRampage = MadokuPetManager.PET_ABILITY_RAMPAGE.equals(resolvedAbilityType);
 				boolean usesJumpEfficiency = MadokuPetManager.PET_ABILITY_JUMP_EFFICIENCY.equals(resolvedAbilityType);
+				boolean usesStorageEfficiency = MadokuPetManager.PET_ABILITY_STORAGE_EFFICIENCY.equals(resolvedAbilityType);
 				JsonObject ability = madoku.craft.java.core.json.JSONFormatAPIManager.object()
 					.put("id", abilityConfigId(resolvedAbilityType))
 					.put("ability-type", defaultAbilityType(resolvedAbilityType))
@@ -1215,6 +1228,9 @@ public final class PetConfigManager {
 				}
 				if (usesJumpEfficiency) {
 					ability.addProperty("jump-height-bonus", 0.06D);
+				}
+				if (usesStorageEfficiency) {
+					ability.addProperty("storage-efficiency", 32.0D);
 				}
 				if (usesSprintBoost) {
 					ability.addProperty("sprint-speed-boost", 0.20D);
@@ -1500,6 +1516,11 @@ public final class PetConfigManager {
 							"jump-height-bonus",
 							MadokuPetManager.PET_ABILITY_JUMP_EFFICIENCY.equals(abilityType) ? 0.06D : 0.0D
 						), 0.0D, 10.0D),
+						PetSettings.clampDouble(getDouble(
+							resolvedSource,
+							"storage-efficiency",
+							MadokuPetManager.PET_ABILITY_STORAGE_EFFICIENCY.equals(abilityType) ? 32.0D : 0.0D
+						), 0.0D, 1024.0D),
 						PetSettings.clampDouble(getDouble(resolvedSource, "sprint-speed-boost", 0.0D), 0.0D, 10.0D),
 						PetSettings.clampLong(getLong(resolvedSource, "cooldown-ticks", 0L), 0L, 20L * 60L * 60L),
 						PetSettings.clampLong(getLong(resolvedSource, "exhaustion-ticks", 0L), 0L, 20L * 60L * 60L),
@@ -1674,6 +1695,10 @@ public final class PetConfigManager {
 						&& ability.jumpHeightBonusAmount > 0.0D) {
 						descriptions.add("Passive: Increases jump height by "
 							+ MadokuPetManager.formatPercent(ability.jumpHeightBonusAmount));
+					} else if (MadokuPetManager.PET_ABILITY_STORAGE_EFFICIENCY.equals(configuredAbility)
+						&& ability.storageEfficiencyAmount > 0.0D) {
+						descriptions.add("Passive: Increases player inventory item stack limits by "
+							+ MadokuPetManager.formatAbilityAmount(ability.storageEfficiencyAmount));
 					} else if (MadokuPetManager.PET_ABILITY_SPRINT_BOOST.equals(configuredAbility)
 						&& ability.sprintSpeedBoostAmount > 0.0D && ability.effectDurationTicks > 0L) {
 						descriptions.add("Active: When you sprint, gain "

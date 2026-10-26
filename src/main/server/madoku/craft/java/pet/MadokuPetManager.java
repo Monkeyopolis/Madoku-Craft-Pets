@@ -54,6 +54,7 @@ public final class MadokuPetManager {
 	static final String PET_ABILITY_RAMPAGE = "rampage";
 	static final String PET_ABILITY_DOUBLE_JUMP = "double_jump";
 	static final String PET_ABILITY_JUMP_EFFICIENCY = "jump_efficiency";
+	static final String PET_ABILITY_STORAGE_EFFICIENCY = "storage_efficiency";
 	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
 	private static final Map<UUID, TeleportStamp> LAST_TELEPORT_STAMPS_BY_PLAYER = new HashMap<>();
 

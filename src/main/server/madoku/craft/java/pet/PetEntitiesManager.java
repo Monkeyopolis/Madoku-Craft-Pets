@@ -82,7 +82,7 @@ public final class PetEntitiesManager {
 	private static void registerPetItems() {
 		if (itemsRegistered) return;
 		String[] petIds = {
-			"minecraft:bat", "minecraft:bee", "minecraft:chicken", "minecraft:cow", "minecraft:creeper",
+			"minecraft:bat", "minecraft:bee", "minecraft:chicken", "minecraft:cow", "minecraft:creeper", "minecraft:donkey",
 			"minecraft:goat", "minecraft:iron-golem", "minecraft:ocelot", "minecraft:pig", "minecraft:rabbit", "minecraft:sheep", "minecraft:skeleton", "minecraft:spider", "minecraft:wolf", "minecraft:zombie"
 		};
 		for (String petId : petIds) {
@@ -247,6 +247,7 @@ public final class PetEntitiesManager {
 				MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION,
 				MadokuPetManager.PET_ABILITY_EGG_PROJECTILE
 			));
+			defaults.put("donkey", PetRule.defaultsForEntity("minecraft:donkey", MadokuPetManager.PET_ABILITY_STORAGE_EFFICIENCY));
 			defaults.put("cow", PetRule.defaultsForEntity(
 				"minecraft:cow",
 				MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK,

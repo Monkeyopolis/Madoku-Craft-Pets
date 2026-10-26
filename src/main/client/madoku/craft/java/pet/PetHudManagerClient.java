@@ -40,6 +40,7 @@ public final class PetHudManagerClient {
 	private static final Identifier ABILITY_WOLFPACK_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/wolf-pack.png");
 	private static final Identifier ABILITY_DOUBLE_JUMP_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/double-jump.png");
 	private static final Identifier ABILITY_JUMP_EFFICIENCY_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/jump-efficiency.png");
+	private static final Identifier ABILITY_STORAGE_EFFICIENCY_TEXTURE = Identifier.fromNamespaceAndPath(MOD_ID, "textures/gui/icons/storage-efficiency.png");
 	private static final RenderPipeline ABILITY_SLOT_PIPELINE = RenderPipelines.GUI_TEXTURED;
 	private static final int ABILITY_SLOT_TEXTURE_SIZE = 16;
 	private static final int HOTBAR_HALF_WIDTH = 91;
@@ -205,6 +206,7 @@ public final class PetHudManagerClient {
 			case PetAPIManager.PET_ABILITY_DAMAGE_REDUCTION -> ABILITY_DAMAGE_REDUCTION_TEXTURE;
 			case PetAPIManager.PET_ABILITY_PLAYER_DAMAGE_BONUS -> ABILITY_BONUS_DAMAGE_TEXTURE;
 			case PetAPIManager.PET_ABILITY_MAX_HEALTH_BONUS -> ABILITY_BONUS_HEALTH_TEXTURE;
+			case PetAPIManager.PET_ABILITY_STORAGE_EFFICIENCY -> ABILITY_STORAGE_EFFICIENCY_TEXTURE;
 			case PetAPIManager.PET_ABILITY_EGG_PROJECTILE -> ABILITY_EGG_VOLLEY_TEXTURE;
 			case PetAPIManager.PET_ABILITY_EXPLOSIVE_PROJECTILE -> ABILITY_EXPLOSIVE_PROJECTILE_TEXTURE;
 			case PetAPIManager.PET_ABILITY_GOAT_CHARGE -> ABILITY_GOAT_CHARGE_TEXTURE;

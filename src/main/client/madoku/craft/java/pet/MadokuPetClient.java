@@ -29,7 +29,10 @@ public final class MadokuPetClient {
 		MerchantEggVariantsClient.initialize();
 		ClientTickEvents.END_CLIENT_TICK.register(client -> PetAbilitiesManager.tickClientSprintBoosts(client.player));
 		ClientTickEvents.START_CLIENT_TICK.register(MadokuPetClient::tickClientDoubleJump);
-		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> PetHudManagerClient.reset());
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+			PetHudManagerClient.reset();
+			PetAbilitiesManager.invalidateClientStorageEfficiencyBonuses();
+		});
 		ClientPlayNetworking.registerGlobalReceiver(PetPayloadAPIManager.PetAbilityHudPayload.TYPE,
 			(payload, context) -> PetHudManagerClient.setAbilityCooldowns(payload.asArray()));
 		ClientPlayNetworking.registerGlobalReceiver(PetPayloadAPIManager.ReflectiveTauntVisualPayload.TYPE,
@@ -44,6 +47,7 @@ public final class MadokuPetClient {
 					inventory.setItem(slot, stack.copy());
 				}
 			});
+			PetAbilitiesManager.invalidateClientStorageEfficiencyBonus(Minecraft.getInstance().player.getUUID());
 		});
 	}
 

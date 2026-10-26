@@ -2,6 +2,7 @@ package madoku.craft.mixin.pet;
 
 import madoku.craft.java.pet.PetComponentsAPIManager;
 import madoku.craft.java.pet.PetAbilitiesAPIManager;
+import madoku.craft.java.core.status.EntityStunManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
@@ -29,7 +30,7 @@ public abstract class LivingEntityPetBehaviorMixin {
 	@Inject(method = "travel", at = @At("TAIL"))
 	private void madokuCraft$stopWebStunnedHorizontalMovement(Vec3 travelVector, CallbackInfo ci) {
 		LivingEntity entity = (LivingEntity) (Object) this;
-		if (PetAbilitiesAPIManager.isWebStunned(entity)) {
+		if (EntityStunManager.isStunned(entity)) {
 			Vec3 movement = entity.getDeltaMovement();
 			double verticalVelocity = movement.y;
 			if (entity.isNoGravity()) {
@@ -80,7 +81,7 @@ public abstract class LivingEntityPetBehaviorMixin {
 
 	@Inject(method = "hurtServer", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$preventWebStunnedAttacks(ServerLevel level, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
-		if (source != null && source.getEntity() instanceof LivingEntity attacker && PetAbilitiesAPIManager.isWebStunned(attacker)) {
+		if (source != null && source.getEntity() instanceof LivingEntity attacker && EntityStunManager.isStunned(attacker)) {
 			cir.setReturnValue(false);
 		}
 	}
