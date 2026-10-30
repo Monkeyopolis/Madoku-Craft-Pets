@@ -13,6 +13,8 @@ import java.util.*;
 
 import com.google.gson.JsonObject;
 import madoku.craft.java.core.chunk.ChunkAPIManager;
+import madoku.craft.java.core.attribute.PlayerAttributeStat;
+import madoku.craft.java.core.attribute.PlayerAttributeAPIManager;
 import madoku.craft.java.core.helper.HelperProjectileAPIManager;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
 import madoku.craft.java.core.runtime.AdaptiveIntervalAPIManager;
@@ -43,7 +45,6 @@ import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
-import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -59,12 +60,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** Owns passive, reactive, automatic, and cooldown-based pet abilities. */
 public final class PetAbilitiesManager {
-	private static final Identifier PLAYER_DAMAGE_MODIFIER = Identifier.fromNamespaceAndPath("madoku-craft", "madoku_pets_player_damage_bonus");
 	private static final ResourceKey<DamageType> PET_ABILITY_DAMAGE_TYPE = ResourceKey.create(
 		Registries.DAMAGE_TYPE,
 		Identifier.fromNamespaceAndPath("madoku-craft", "pet_ability")
 	);
-	private static final Identifier PLAYER_HEALTH_MODIFIER = Identifier.fromNamespaceAndPath("madoku-craft", "madoku_pets_player_max_health_bonus");
 	private static final int SLOT_COUNT = PetEntitiesManager.SLOT_COUNT;
 	private static final long PENDING_ATTACK_EXPIRATION_TICKS = 5L * 60L * 20L;
 	private static final String PET_ABILITY_RANGED_HOMING_ARROW = MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW;
@@ -89,6 +88,7 @@ public final class PetAbilitiesManager {
 	private static final String PET_ABILITY_DOUBLE_JUMP = MadokuPetManager.PET_ABILITY_DOUBLE_JUMP;
 	private static final String PET_ABILITY_JUMP_EFFICIENCY = MadokuPetManager.PET_ABILITY_JUMP_EFFICIENCY;
 	private static final String PET_ABILITY_STORAGE_EFFICIENCY = MadokuPetManager.PET_ABILITY_STORAGE_EFFICIENCY;
+	private static final String PET_ABILITY_MINING_EFFICIENCY = MadokuPetManager.PET_ABILITY_MINING_EFFICIENCY;
 	private static final int STORAGE_EFFICIENCY_MAX_BONUS = 4096;
 	private static final String IRON_GOLEM_PET_ID = "minecraft:iron-golem";
 	private static final long REFLECTIVE_TAUNT_ATTACK_DELAY_TICKS = 10L;
@@ -196,6 +196,7 @@ public final class PetAbilitiesManager {
 	private static final Map<UUID, ExplosiveVulnerabilityState> EXPLOSIVE_VULNERABILITY_BY_ENTITY = new ConcurrentHashMap<>();
 	private static final Map<UUID, Entity> PERSISTENT_TEMPORARY_ENTITIES_BY_ID = new ConcurrentHashMap<>();
 	private static final Map<UUID, PassiveBonuses> PASSIVE_BONUSES_BY_PLAYER = new HashMap<>();
+	private static final Map<UUID, PassiveBonuses> CLIENT_PASSIVE_BONUSES_BY_PLAYER = new HashMap<>();
 	private static final Map<UUID, Integer> STORAGE_EFFICIENCY_BONUS_BY_PLAYER = new HashMap<>();
 	private static final Set<UUID> DOUBLE_JUMP_USED_BY_PLAYER = ConcurrentHashMap.newKeySet();
 	private static final Set<UUID> CLIENT_DOUBLE_JUMP_PRESERVATION_BY_PLAYER = ConcurrentHashMap.newKeySet();
@@ -229,6 +230,7 @@ public final class PetAbilitiesManager {
 		EXPLOSIVE_VULNERABILITY_BY_ENTITY.clear();
 		PERSISTENT_TEMPORARY_ENTITIES_BY_ID.clear();
 		PASSIVE_BONUSES_BY_PLAYER.clear();
+		CLIENT_PASSIVE_BONUSES_BY_PLAYER.clear();
 		STORAGE_EFFICIENCY_BONUS_BY_PLAYER.clear();
 		DOUBLE_JUMP_USED_BY_PLAYER.clear();
 		CLIENT_DOUBLE_JUMP_PRESERVATION_BY_PLAYER.clear();
@@ -1246,7 +1248,8 @@ public final class PetAbilitiesManager {
 				MadokuPetManager.PET_ABILITY_RAMPAGE,
 				MadokuPetManager.PET_ABILITY_DOUBLE_JUMP,
 				MadokuPetManager.PET_ABILITY_JUMP_EFFICIENCY,
-				MadokuPetManager.PET_ABILITY_STORAGE_EFFICIENCY
+				MadokuPetManager.PET_ABILITY_STORAGE_EFFICIENCY,
+				MadokuPetManager.PET_ABILITY_MINING_EFFICIENCY
 				};
 				for (String abilityType : abilityTypes) {
 					defaults.put(PetConfigManager.abilityConfigId(abilityType), PetConfigManager.PetRule.defaultsForAbility(abilityType));
@@ -2381,6 +2384,27 @@ public final class PetAbilitiesManager {
 		return Math.max(0.0D, sumAbility(player, PET_ABILITY_MAX_HEALTH_BONUS));
 	}
 
+	/** Returns the cached Silverfish mining-efficiency bonus. */
+	public static double miningEfficiencyBonus(ServerPlayer player) {
+		boolean enabled = PetConfigManager.isEnabled();
+		if (player == null || !enabled) {
+			return 0.0D;
+		}
+		PassiveBonuses bonuses = PASSIVE_BONUSES_BY_PLAYER.get(player.getUUID());
+		return bonuses == null ? 0.0D : Math.max(0.0D, bonuses.miningSpeed());
+	}
+
+	/** Returns the cached Silverfish mining-efficiency bonus for the client player. */
+	public static double miningEfficiencyBonus(Player player) {
+		boolean enabled = PetConfigManager.isEnabled();
+		if (player == null || !enabled) {
+			return 0.0D;
+		}
+		UUID playerId = player.getUUID();
+		PassiveBonuses bonuses = CLIENT_PASSIVE_BONUSES_BY_PLAYER.computeIfAbsent(playerId, ignored -> resolvePassiveBonuses(player));
+		return Math.max(0.0D, bonuses.miningSpeed());
+	}
+
 	public static double damageReduction(ServerPlayer player) {
 		return Math.min(1.0D, Math.max(0.0D, sumAbility(player, PET_ABILITY_DAMAGE_REDUCTION)));
 	}
@@ -2429,44 +2453,46 @@ public final class PetAbilitiesManager {
 		if (player == null) return;
 		PassiveBonuses bonuses = resolvePassiveBonuses(player);
 		PASSIVE_BONUSES_BY_PLAYER.put(player.getUUID(), bonuses);
-		applyPassiveAbilityBonuses(player, bonuses);
+		PlayerAttributeAPIManager.apply(player);
 	}
 
-	private static void applyPassiveAbilityBonuses(ServerPlayer player, PassiveBonuses bonuses) {
-		if (player == null || bonuses == null) return;
-
-		AttributeInstance maxHealth = player.getAttribute(Attributes.MAX_HEALTH);
-		if (maxHealth != null) {
-			maxHealth.removeModifier(PLAYER_HEALTH_MODIFIER);
-			if (bonuses.maxHealth() > 0.0D) {
-				maxHealth.addOrUpdateTransientModifier(new AttributeModifier(
-					PLAYER_HEALTH_MODIFIER, bonuses.maxHealth(), AttributeModifier.Operation.ADD_VALUE
-				));
-			}
-			if (player.getHealth() > player.getMaxHealth()) player.setHealth(player.getMaxHealth());
+	/** Returns one cached passive contribution for the shared player-stat resolver. */
+	public static double playerAttributeBonus(ServerPlayer player, PlayerAttributeStat stat) {
+		if (player == null || stat == null || !PetConfigManager.isEnabled()) return 0.0D;
+		PassiveBonuses bonuses = PASSIVE_BONUSES_BY_PLAYER.get(player.getUUID());
+		if (bonuses == null) {
+			bonuses = resolvePassiveBonuses(player);
+			PASSIVE_BONUSES_BY_PLAYER.put(player.getUUID(), bonuses);
 		}
-
-		AttributeInstance damage = player.getAttribute(Attributes.ATTACK_DAMAGE);
-		if (damage != null) {
-			damage.removeModifier(PLAYER_DAMAGE_MODIFIER);
-			if (bonuses.damage() > 0.0D) {
-				damage.addOrUpdateTransientModifier(new AttributeModifier(
-					PLAYER_DAMAGE_MODIFIER, bonuses.damage(), AttributeModifier.Operation.ADD_VALUE
-				));
-			}
-		}
+		return switch (stat) {
+			case HEALTH -> bonuses.maxHealth();
+			case STRENGTH -> bonuses.damage();
+			default -> 0.0D;
+		};
 	}
 
 	static void invalidatePassiveAbilityBonuses(UUID playerId) {
 		if (playerId != null) {
 			PASSIVE_BONUSES_BY_PLAYER.remove(playerId);
+			CLIENT_PASSIVE_BONUSES_BY_PLAYER.remove(playerId);
 			STORAGE_EFFICIENCY_BONUS_BY_PLAYER.remove(playerId);
 		}
 	}
 
 	static void invalidateAllPassiveAbilityBonuses() {
 		PASSIVE_BONUSES_BY_PLAYER.clear();
+		CLIENT_PASSIVE_BONUSES_BY_PLAYER.clear();
 		STORAGE_EFFICIENCY_BONUS_BY_PLAYER.clear();
+	}
+
+	static void invalidateClientPassiveAbilityBonus(UUID playerId) {
+		if (playerId != null) {
+			CLIENT_PASSIVE_BONUSES_BY_PLAYER.remove(playerId);
+		}
+	}
+
+	static void invalidateClientPassiveAbilityBonuses() {
+		CLIENT_PASSIVE_BONUSES_BY_PLAYER.clear();
 	}
 
 	static void invalidateClientStorageEfficiencyBonus(UUID playerId) {
@@ -2479,14 +2505,16 @@ public final class PetAbilitiesManager {
 		STORAGE_EFFICIENCY_BONUS_BY_PLAYER.clear();
 	}
 
-	private static PassiveBonuses resolvePassiveBonuses(ServerPlayer player) {
+	private static PassiveBonuses resolvePassiveBonuses(Player player) {
 		if (player == null || !PetConfigManager.isEnabled()) return PassiveBonuses.EMPTY;
 		PetInventory inventory = petInventory(player);
 		if (inventory == null) return PassiveBonuses.EMPTY;
 		double damage = 0.0D;
 		double maxHealth = 0.0D;
+		double miningSpeed = 0.0D;
 		int storageEfficiency = resolveStorageEfficiencyBonus(player);
 		boolean hasPrimaryDamageAbility = false;
+		boolean hasPrimaryMiningAbility = false;
 		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
 			PetRule rule = PetConfigManager.resolvePetRule(inventory.getItem(slot));
 			if (rule == null) continue;
@@ -2495,12 +2523,20 @@ public final class PetAbilitiesManager {
 				hasPrimaryDamageAbility = true;
 			}
 			if (rule.hasAbility(PET_ABILITY_MAX_HEALTH_BONUS)) maxHealth += rule.maxHealthBonus();
+			PetAbilityRule miningAbility = rule.ability(PET_ABILITY_MINING_EFFICIENCY);
+			if (miningAbility != null) {
+				double value = Math.max(0.0D, miningAbility.miningSpeedBonusAmount);
+				miningSpeed += value * (hasPrimaryMiningAbility ? 0.25D : 1.0D);
+				hasPrimaryMiningAbility = true;
+			}
 		}
-		return new PassiveBonuses(
+		PassiveBonuses bonuses = new PassiveBonuses(
 			Math.max(0.0D, damage),
 			Math.max(0.0D, maxHealth),
-			storageEfficiency
+			storageEfficiency,
+			Math.max(0.0D, miningSpeed)
 		);
+		return bonuses;
 	}
 
 	private static int resolveStorageEfficiencyBonus(Player player) {
@@ -2526,8 +2562,8 @@ public final class PetAbilitiesManager {
 			Math.max(0.0D, Math.floor(primaryValue + ((total - primaryValue) * 0.25D))));
 	}
 
-	private record PassiveBonuses(double damage, double maxHealth, int storageEfficiency) {
-		private static final PassiveBonuses EMPTY = new PassiveBonuses(0.0D, 0.0D, 0);
+	private record PassiveBonuses(double damage, double maxHealth, int storageEfficiency, double miningSpeed) {
+		private static final PassiveBonuses EMPTY = new PassiveBonuses(0.0D, 0.0D, 0, 0.0D);
 	}
 
 	private static double sumAbility(ServerPlayer player, String abilityType) {
@@ -2784,25 +2820,6 @@ public final class PetAbilitiesManager {
 			state.soundVolume,
 			state.soundPitch
 		);
-	}
-
-	public static void applyPlayerMaxHealthAbilityBonus(ServerPlayer player) {
-		if (player == null) return;
-		AttributeInstance attribute = player.getAttribute(Attributes.MAX_HEALTH);
-		if (attribute == null) return;
-		attribute.removeModifier(PLAYER_HEALTH_MODIFIER);
-		double bonus = maxHealthBonus(player);
-		if (bonus > 0.0D) attribute.addOrUpdateTransientModifier(new AttributeModifier(PLAYER_HEALTH_MODIFIER, bonus, AttributeModifier.Operation.ADD_VALUE));
-		if (player.getHealth() > player.getMaxHealth()) player.setHealth(player.getMaxHealth());
-	}
-
-	public static void applyPlayerDamageAbilityBonus(ServerPlayer player) {
-		if (player == null) return;
-		AttributeInstance attribute = player.getAttribute(Attributes.ATTACK_DAMAGE);
-		if (attribute == null) return;
-		attribute.removeModifier(PLAYER_DAMAGE_MODIFIER);
-		double bonus = playerDamageBonus(player);
-		if (bonus > 0.0D) attribute.addOrUpdateTransientModifier(new AttributeModifier(PLAYER_DAMAGE_MODIFIER, bonus, AttributeModifier.Operation.ADD_VALUE));
 	}
 
 	public static boolean hasAbility(Entity entity) {

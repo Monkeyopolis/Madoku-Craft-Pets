@@ -20,6 +20,7 @@ import java.util.UUID;
 
 import madoku.craft.java.core.data.PlayerDataAPIManager;
 import madoku.craft.java.core.chunk.ChunkAPIManager;
+import madoku.craft.java.core.attribute.PlayerAttributeAPIManager;
 import madoku.craft.java.core.runtime.AdaptiveIntervalAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetInventory;
@@ -55,6 +56,7 @@ public final class MadokuPetManager {
 	static final String PET_ABILITY_DOUBLE_JUMP = "double_jump";
 	static final String PET_ABILITY_JUMP_EFFICIENCY = "jump_efficiency";
 	static final String PET_ABILITY_STORAGE_EFFICIENCY = "storage_efficiency";
+	static final String PET_ABILITY_MINING_EFFICIENCY = "mining_efficiency";
 	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
 	private static final Map<UUID, TeleportStamp> LAST_TELEPORT_STAMPS_BY_PLAYER = new HashMap<>();
 
@@ -72,6 +74,8 @@ public final class MadokuPetManager {
 		PetConfigManager.initialize();
 		MadokuPetsCoreAdapters.initialize();
 		PetAbilitiesManager.initialize();
+		PlayerAttributeAPIManager.registerProvider(new MadokuPetsPlayerAttributeProvider());
+		PlayerAttributeAPIManager.registerProvider(new MadokuPetsMiningSpeedProvider());
 		PetHudManager.initialize();
 		PetHagManager.initialize();
 		PetComponentsManager.initialize();

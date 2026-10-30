@@ -31,13 +31,13 @@ public final class MadokuPetAbilitiesProvider implements PetAbilitiesProvider {
 	@Override public double playerDamageBonus(ServerPlayer player) { return PetAbilitiesManager.playerDamageBonus(player); }
 	@Override public double fallDamageReduction(ServerPlayer player) { return PetAbilitiesManager.fallDamageReduction(player); }
 	@Override public double maxHealthBonus(ServerPlayer player) { return PetAbilitiesManager.maxHealthBonus(player); }
+	@Override public double miningEfficiencyBonus(ServerPlayer player) { return PetAbilitiesManager.miningEfficiencyBonus(player); }
+	@Override public double miningEfficiencyBonus(Player player) { return PetAbilitiesManager.miningEfficiencyBonus(player); }
 	@Override public double damageReduction(ServerPlayer player) { return PetAbilitiesManager.damageReduction(player); }
 	@Override public void applyPlayerPassiveAbilityBonuses(ServerPlayer player) { PetAbilitiesManager.applyPlayerPassiveAbilityBonuses(player); }
 	@Override public float applyFallDamage(LivingEntity entity, DamageSource source, float amount) { return PetAbilitiesManager.applyFallDamage(entity, source, amount); }
 	@Override public float applyDamageReduction(LivingEntity entity, DamageSource source, float amount) { return PetAbilitiesManager.applyDamageReduction(entity, source, amount); }
 	@Override public float applyDamageBlock(LivingEntity entity, DamageSource source, float amount) { return PetAbilitiesManager.applyDamageBlock(entity, source, amount); }
-	@Override public void applyPlayerMaxHealthAbilityBonus(ServerPlayer player) { PetAbilitiesManager.applyPlayerMaxHealthAbilityBonus(player); }
-	@Override public void applyPlayerDamageAbilityBonus(ServerPlayer player) { PetAbilitiesManager.applyPlayerDamageAbilityBonus(player); }
 	@Override public float applyOutgoingDamage(DamageSource source, float amount) { return PetAbilitiesManager.applyOutgoingDamage(source, amount); }
 	@Override public boolean hasAbility(Entity entity) { return PetAbilitiesManager.hasAbility(entity); }
 	@Override public void recordManagedPetDamage(Entity entity, DamageSource source, float amount) { PetAbilitiesManager.recordManagedPetDamage(entity, source, amount); }

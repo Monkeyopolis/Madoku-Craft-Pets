@@ -31,13 +31,15 @@ public interface PetAbilitiesProvider {
 	default double playerDamageBonus(ServerPlayer player) { return 0.0D; }
 	default double fallDamageReduction(ServerPlayer player) { return 0.0D; }
 	default double maxHealthBonus(ServerPlayer player) { return 0.0D; }
+	default double miningEfficiencyBonus(ServerPlayer player) { return 0.0D; }
+	default double miningEfficiencyBonus(Player player) {
+		return player instanceof ServerPlayer serverPlayer ? miningEfficiencyBonus(serverPlayer) : 0.0D;
+	}
 	default double damageReduction(ServerPlayer player) { return 0.0D; }
 	default void applyPlayerPassiveAbilityBonuses(ServerPlayer player) { }
 	default float applyFallDamage(LivingEntity entity, DamageSource source, float amount) { return amount; }
 	default float applyDamageReduction(LivingEntity entity, DamageSource source, float amount) { return amount; }
 	default float applyDamageBlock(LivingEntity entity, DamageSource source, float amount) { return amount; }
-	default void applyPlayerMaxHealthAbilityBonus(ServerPlayer player) { }
-	default void applyPlayerDamageAbilityBonus(ServerPlayer player) { }
 	default float applyOutgoingDamage(DamageSource source, float amount) { return amount; }
 	default boolean hasAbility(Entity entity) { return false; }
 	default void recordManagedPetDamage(Entity entity, DamageSource source, float amount) { }

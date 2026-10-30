@@ -342,6 +342,7 @@ public final class PetConfigManager {
 		if ("minecraft:pig".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS;
 		if ("minecraft:rabbit".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_DOUBLE_JUMP;
 		if ("minecraft:sheep".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_DAMAGE_REDUCTION;
+		if ("minecraft:silverfish".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_MINING_EFFICIENCY;
 		if ("minecraft:skeleton".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW;
 		if ("minecraft:spider".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_WEB_PROJECTILE;
 		if ("minecraft:creeper".equals(normalizedItemId)) return MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE;
@@ -614,6 +615,7 @@ public final class PetConfigManager {
 		final double movementSpeedBonusAmount;
 		final double jumpHeightBonusAmount;
 		final double storageEfficiencyAmount;
+		final double miningSpeedBonusAmount;
 		final double sprintSpeedBoostAmount;
 		final long cooldownTicks;
 		final long exhaustionTicks;
@@ -657,6 +659,7 @@ public final class PetConfigManager {
 			double movementSpeedBonusAmount,
 			double jumpHeightBonusAmount,
 			double storageEfficiencyAmount,
+			double miningSpeedBonusAmount,
 			double sprintSpeedBoostAmount,
 			long cooldownTicks,
 			long exhaustionTicks,
@@ -702,6 +705,7 @@ public final class PetConfigManager {
 			this.movementSpeedBonusAmount = movementSpeedBonusAmount;
 			this.jumpHeightBonusAmount = jumpHeightBonusAmount;
 			this.storageEfficiencyAmount = storageEfficiencyAmount;
+			this.miningSpeedBonusAmount = miningSpeedBonusAmount;
 			this.sprintSpeedBoostAmount = sprintSpeedBoostAmount;
 			this.cooldownTicks = cooldownTicks;
 			this.exhaustionTicks = exhaustionTicks;
@@ -794,6 +798,10 @@ public final class PetConfigManager {
 			double resolvedStorageEfficiency = storageEfficiencyAmount;
 			if (MadokuPetManager.PET_ABILITY_STORAGE_EFFICIENCY.equals(abilityType)) {
 				resolvedStorageEfficiency += (Math.max(1, level) - 1) * 8.0D;
+			}
+			double resolvedMiningSpeedBonus = miningSpeedBonusAmount;
+			if (MadokuPetManager.PET_ABILITY_MINING_EFFICIENCY.equals(abilityType)) {
+				resolvedMiningSpeedBonus += (Math.max(1, level) - 1) * 0.5D;
 			}
 			double resolvedSprintSpeedBoost = sprintSpeedBoostAmount;
 			long resolvedCooldownTicks = cooldownTicks;
@@ -891,6 +899,7 @@ public final class PetConfigManager {
 				resolvedMovementSpeedBonus,
 				resolvedJumpHeightBonus,
 				resolvedStorageEfficiency,
+				resolvedMiningSpeedBonus,
 				resolvedSprintSpeedBoost,
 				resolvedCooldownTicks,
 				exhaustionTicks,
@@ -937,6 +946,7 @@ public final class PetConfigManager {
 				movementSpeedBonusAmount,
 				jumpHeightBonusAmount,
 				storageEfficiencyAmount,
+				miningSpeedBonusAmount,
 				sprintSpeedBoostAmount,
 				0L,
 				exhaustionTicks,
@@ -1136,6 +1146,7 @@ public final class PetConfigManager {
 				boolean usesRampage = MadokuPetManager.PET_ABILITY_RAMPAGE.equals(resolvedAbilityType);
 				boolean usesJumpEfficiency = MadokuPetManager.PET_ABILITY_JUMP_EFFICIENCY.equals(resolvedAbilityType);
 				boolean usesStorageEfficiency = MadokuPetManager.PET_ABILITY_STORAGE_EFFICIENCY.equals(resolvedAbilityType);
+				boolean usesMiningEfficiency = MadokuPetManager.PET_ABILITY_MINING_EFFICIENCY.equals(resolvedAbilityType);
 				JsonObject ability = madoku.craft.java.core.json.JSONFormatAPIManager.object()
 					.put("id", abilityConfigId(resolvedAbilityType))
 					.put("ability-type", defaultAbilityType(resolvedAbilityType))
@@ -1231,6 +1242,9 @@ public final class PetConfigManager {
 				}
 				if (usesStorageEfficiency) {
 					ability.addProperty("storage-efficiency", 32.0D);
+				}
+				if (usesMiningEfficiency) {
+					ability.addProperty("mining-speed-bonus", 1.0D);
 				}
 				if (usesSprintBoost) {
 					ability.addProperty("sprint-speed-boost", 0.20D);
@@ -1521,6 +1535,11 @@ public final class PetConfigManager {
 							"storage-efficiency",
 							MadokuPetManager.PET_ABILITY_STORAGE_EFFICIENCY.equals(abilityType) ? 32.0D : 0.0D
 						), 0.0D, 1024.0D),
+						PetSettings.clampDouble(getDouble(
+							resolvedSource,
+							"mining-speed-bonus",
+							MadokuPetManager.PET_ABILITY_MINING_EFFICIENCY.equals(abilityType) ? 1.0D : 0.0D
+						), 0.0D, 1024.0D),
 						PetSettings.clampDouble(getDouble(resolvedSource, "sprint-speed-boost", 0.0D), 0.0D, 10.0D),
 						PetSettings.clampLong(getLong(resolvedSource, "cooldown-ticks", 0L), 0L, 20L * 60L * 60L),
 						PetSettings.clampLong(getLong(resolvedSource, "exhaustion-ticks", 0L), 0L, 20L * 60L * 60L),
@@ -1699,6 +1718,10 @@ public final class PetConfigManager {
 						&& ability.storageEfficiencyAmount > 0.0D) {
 						descriptions.add("Passive: Increases player inventory item stack limits by "
 							+ MadokuPetManager.formatAbilityAmount(ability.storageEfficiencyAmount));
+					} else if (MadokuPetManager.PET_ABILITY_MINING_EFFICIENCY.equals(configuredAbility)
+						&& ability.miningSpeedBonusAmount > 0.0D) {
+						descriptions.add("Passive: Increases mining speed by "
+							+ MadokuPetManager.formatAbilityAmount(ability.miningSpeedBonusAmount) + ".");
 					} else if (MadokuPetManager.PET_ABILITY_SPRINT_BOOST.equals(configuredAbility)
 						&& ability.sprintSpeedBoostAmount > 0.0D && ability.effectDurationTicks > 0L) {
 						descriptions.add("Active: When you sprint, gain "

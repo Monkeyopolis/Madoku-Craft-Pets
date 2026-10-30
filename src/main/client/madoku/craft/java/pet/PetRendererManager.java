@@ -20,6 +20,7 @@ import net.minecraft.client.model.ambient.BatModel;
 import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.client.model.monster.creeper.CreeperModel;
 import net.minecraft.client.model.monster.skeleton.SkeletonModel;
+import net.minecraft.client.model.monster.silverfish.SilverfishModel;
 import net.minecraft.client.model.monster.spider.SpiderModel;
 import net.minecraft.client.model.monster.zombie.ZombieModel;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -30,6 +31,7 @@ import net.minecraft.client.renderer.entity.state.BeeRenderState;
 import net.minecraft.client.renderer.entity.state.ChickenRenderState;
 import net.minecraft.client.renderer.entity.state.CreeperRenderState;
 import net.minecraft.client.renderer.entity.state.DonkeyRenderState;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.client.renderer.entity.state.GoatRenderState;
 import net.minecraft.client.renderer.entity.state.IronGolemRenderState;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
@@ -71,6 +73,7 @@ public final class PetRendererManager {
 		private static final Identifier PIG_TEXTURE = texture("textures/entity/pig/pig_temperate.png");
 		private static final Identifier RABBIT_TEXTURE = texture("textures/entity/rabbit/rabbit_brown.png");
 		private static final Identifier SHEEP_TEXTURE = texture("textures/entity/sheep/sheep.png");
+		private static final Identifier SILVERFISH_TEXTURE = texture("textures/entity/silverfish/silverfish.png");
 		private static final Identifier SKELETON_TEXTURE = texture("textures/entity/skeleton/skeleton.png");
 		private static final Identifier SPIDER_TEXTURE = texture("textures/entity/spider/spider.png");
 		private static final Identifier ZOMBIE_TEXTURE = texture("textures/entity/zombie/zombie.png");
@@ -98,6 +101,7 @@ public final class PetRendererManager {
 					new SheepFurModel(context.bakeLayer(ModelLayers.SHEEP_WOOL)),
 					SHEEP_TEXTURE
 				)),
+				Map.entry("minecraft:silverfish", new SilverfishProfile(new SilverfishModel(context.bakeLayer(ModelLayers.SILVERFISH)), SILVERFISH_TEXTURE)),
 				Map.entry("minecraft:skeleton", new SkeletonProfile(new SkeletonModel<>(context.bakeLayer(ModelLayers.SKELETON)), SKELETON_TEXTURE)),
 				Map.entry("minecraft:spider", new LivingProfile(new SpiderModel(context.bakeLayer(ModelLayers.SPIDER)), SPIDER_TEXTURE)),
 				Map.entry("minecraft:zombie", new ZombieProfile(new ZombieModel<>(context.bakeLayer(ModelLayers.ZOMBIE)), ZOMBIE_TEXTURE)),
@@ -230,6 +234,23 @@ public final class PetRendererManager {
 			ChickenRenderState state = copyLiving(source, new ChickenRenderState());
 			state.flap = 0.0F;
 			state.flapSpeed = 0.0F;
+			model.setupAnim(state);
+			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
+		}
+	}
+
+	private static final class SilverfishProfile implements PetModelProfile {
+		private final SilverfishModel model;
+		private final Identifier texture;
+
+		private SilverfishProfile(SilverfishModel model, Identifier texture) {
+			this.model = model;
+			this.texture = texture;
+		}
+
+		@Override
+		public void render(PetRenderState source, PoseStack poseStack, SubmitNodeCollector collector) {
+			EntityRenderState state = source;
 			model.setupAnim(state);
 			collector.submitModel(model, state, poseStack, texture, source.lightCoords, OverlayTexture.NO_OVERLAY, source.outlineColor);
 		}

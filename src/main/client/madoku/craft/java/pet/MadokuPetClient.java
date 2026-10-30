@@ -1,6 +1,7 @@
 package madoku.craft.java.pet;
 
 import madoku.craft.java.pet.entity.MadokuEntitiesClient;
+import madoku.craft.java.core.attribute.PlayerAttributeAPIManager;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.ItemStack;
@@ -27,10 +28,12 @@ public final class MadokuPetClient {
 		MadokuEntitiesClient.initialize();
 		PetRendererManager.initialize();
 		MerchantEggVariantsClient.initialize();
+		PlayerAttributeAPIManager.registerProvider(new MadokuPetsClientMiningSpeedProvider());
 		ClientTickEvents.END_CLIENT_TICK.register(client -> PetAbilitiesManager.tickClientSprintBoosts(client.player));
 		ClientTickEvents.START_CLIENT_TICK.register(MadokuPetClient::tickClientDoubleJump);
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			PetHudManagerClient.reset();
+			PetAbilitiesManager.invalidateClientPassiveAbilityBonuses();
 			PetAbilitiesManager.invalidateClientStorageEfficiencyBonuses();
 		});
 		ClientPlayNetworking.registerGlobalReceiver(PetPayloadAPIManager.PetAbilityHudPayload.TYPE,
@@ -47,6 +50,7 @@ public final class MadokuPetClient {
 					inventory.setItem(slot, stack.copy());
 				}
 			});
+			PetAbilitiesManager.invalidateClientPassiveAbilityBonus(Minecraft.getInstance().player.getUUID());
 			PetAbilitiesManager.invalidateClientStorageEfficiencyBonus(Minecraft.getInstance().player.getUUID());
 		});
 	}

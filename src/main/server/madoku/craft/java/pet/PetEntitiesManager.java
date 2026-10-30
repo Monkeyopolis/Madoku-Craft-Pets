@@ -83,7 +83,7 @@ public final class PetEntitiesManager {
 		if (itemsRegistered) return;
 		String[] petIds = {
 			"minecraft:bat", "minecraft:bee", "minecraft:chicken", "minecraft:cow", "minecraft:creeper", "minecraft:donkey",
-			"minecraft:goat", "minecraft:iron-golem", "minecraft:ocelot", "minecraft:pig", "minecraft:rabbit", "minecraft:sheep", "minecraft:skeleton", "minecraft:spider", "minecraft:wolf", "minecraft:zombie"
+			"minecraft:goat", "minecraft:iron-golem", "minecraft:ocelot", "minecraft:pig", "minecraft:rabbit", "minecraft:sheep", "minecraft:silverfish", "minecraft:skeleton", "minecraft:spider", "minecraft:wolf", "minecraft:zombie"
 		};
 		for (String petId : petIds) {
 			String itemPath = PetConfigManager.petItemPath(petId);
@@ -268,6 +268,7 @@ public final class PetEntitiesManager {
 				MadokuPetManager.PET_ABILITY_JUMP_EFFICIENCY
 			));
 			defaults.put("sheep", PetRule.defaultsForEntity("minecraft:sheep", MadokuPetManager.PET_ABILITY_DAMAGE_REDUCTION));
+			defaults.put("silverfish", PetRule.defaultsForEntity("minecraft:silverfish", MadokuPetManager.PET_ABILITY_MINING_EFFICIENCY));
 			defaults.put("skeleton", PetRule.defaultsForEntity("minecraft:skeleton", MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW));
 			defaults.put("spider", PetRule.defaultsForEntity("minecraft:spider", MadokuPetManager.PET_ABILITY_WEB_PROJECTILE));
 			defaults.put("wolf", PetRule.defaultsForEntity(
